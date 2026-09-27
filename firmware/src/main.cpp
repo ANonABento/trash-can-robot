@@ -1,9 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <AsyncUDP.h>
-#include <Wire.h>
-#include <VL53L0X.h>
-#include <MPU6050.h>
 #include <esp_camera.h>
 #include <esp_http_server.h>
 #include <ArduinoJson.h>
@@ -15,29 +12,19 @@
 // ---------------------------------------------------------------------------
 static const uint16_t UDP_PORT          = 4210;
 static const uint16_t HTTP_PORT         = 80;
-static const uint16_t SAFETY_DIST_MM   = 150;
-static const uint32_t TOF_INTERVAL_MS  = 50;
 static const uint32_t LED_INTERVAL_MS  = 500;
 static const uint8_t  LEDC_RESOLUTION  = 8;    // 0-255
 static const uint32_t LEDC_FREQ        = 5000;
 static const uint8_t  LEDC_CH_ENA      = 0;
 static const uint8_t  LEDC_CH_ENB      = 1;
 
-// VL53L0X addresses after reassignment
-static const uint8_t TOF_ADDR_FRONT = 0x30;
-static const uint8_t TOF_ADDR_LEFT  = 0x31;
-static const uint8_t TOF_ADDR_RIGHT = 0x32;
-
 // ---------------------------------------------------------------------------
 // Globals
 // ---------------------------------------------------------------------------
 AsyncUDP udp;
-VL53L0X tofFront, tofLeft, tofRight;
-MPU6050 mpu;
 
 volatile int16_t cmdLeft  = 0;
 volatile int16_t cmdRight = 0;
-volatile bool safetyStop  = false;
 
 httpd_handle_t streamHttpd = NULL;
 
@@ -163,98 +150,6 @@ void startStreamServer() {
 }
 
 // ---------------------------------------------------------------------------
-// VL53L0X init (sequentially enable via XSHUT)
-// ---------------------------------------------------------------------------
-bool initToFSensors() {
-    // Hold all in reset
-    pinMode(PIN_XSHUT_FRONT, OUTPUT);
-    pinMode(PIN_XSHUT_LEFT,  OUTPUT);
-    pinMode(PIN_XSHUT_RIGHT, OUTPUT);
-    digitalWrite(PIN_XSHUT_FRONT, LOW);
-    digitalWrite(PIN_XSHUT_LEFT,  LOW);
-    digitalWrite(PIN_XSHUT_RIGHT, LOW);
-    delay(10);
-
-    // Enable front sensor, assign address
-    digitalWrite(PIN_XSHUT_FRONT, HIGH);
-    delay(10);
-    tofFront.setTimeout(500);
-    if (!tofFront.init()) {
-        Serial.println("Failed to init front ToF");
-        return false;
-    }
-    tofFront.setAddress(TOF_ADDR_FRONT);
-    tofFront.startContinuous(TOF_INTERVAL_MS);
-
-    // Enable left sensor, assign address
-    digitalWrite(PIN_XSHUT_LEFT, HIGH);
-    delay(10);
-    tofLeft.setTimeout(500);
-    if (!tofLeft.init()) {
-        Serial.println("Failed to init left ToF");
-        return false;
-    }
-    tofLeft.setAddress(TOF_ADDR_LEFT);
-    tofLeft.startContinuous(TOF_INTERVAL_MS);
-
-    // Enable right sensor, assign address
-    digitalWrite(PIN_XSHUT_RIGHT, HIGH);
-    delay(10);
-    tofRight.setTimeout(500);
-    if (!tofRight.init()) {
-        Serial.println("Failed to init right ToF");
-        return false;
-    }
-    tofRight.setAddress(TOF_ADDR_RIGHT);
-    tofRight.startContinuous(TOF_INTERVAL_MS);
-
-    Serial.println("All ToF sensors initialized");
-    return true;
-}
-
-// ---------------------------------------------------------------------------
-// MPU-6050 init
-// ---------------------------------------------------------------------------
-bool initIMU() {
-    mpu.initialize();
-    if (!mpu.testConnection()) {
-        Serial.println("MPU-6050 connection failed");
-        return false;
-    }
-    Serial.println("MPU-6050 initialized");
-    return true;
-}
-
-// ---------------------------------------------------------------------------
-// FreeRTOS task: safety monitor (ToF reading + motor override)
-// ---------------------------------------------------------------------------
-void safetyTask(void *pvParameters) {
-    (void)pvParameters;
-    TickType_t lastWake = xTaskGetTickCount();
-
-    for (;;) {
-        uint16_t dFront = tofFront.readRangeContinuousMillimeters();
-        uint16_t dLeft  = tofLeft.readRangeContinuousMillimeters();
-        uint16_t dRight = tofRight.readRangeContinuousMillimeters();
-
-        bool tooClose = false;
-        if (!tofFront.timeoutOccurred() && dFront < SAFETY_DIST_MM) tooClose = true;
-        if (!tofLeft.timeoutOccurred()  && dLeft  < SAFETY_DIST_MM) tooClose = true;
-        if (!tofRight.timeoutOccurred() && dRight < SAFETY_DIST_MM) tooClose = true;
-
-        safetyStop = tooClose;
-
-        if (safetyStop) {
-            applyMotors(0, 0);
-        } else {
-            applyMotors(cmdLeft, cmdRight);
-        }
-
-        vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(TOF_INTERVAL_MS));
-    }
-}
-
-// ---------------------------------------------------------------------------
 // FreeRTOS task: LED heartbeat
 // ---------------------------------------------------------------------------
 void heartbeatTask(void *pvParameters) {
@@ -283,10 +178,7 @@ void onUdpPacket(AsyncUDPPacket &packet) {
     cmdLeft  = l;
     cmdRight = r;
 
-    // If safety is not active, apply immediately
-    if (!safetyStop) {
-        applyMotors(cmdLeft, cmdRight);
-    }
+    applyMotors(cmdLeft, cmdRight);
 }
 
 // ---------------------------------------------------------------------------
@@ -319,13 +211,6 @@ void setup() {
     }
     Serial.printf("\nConnected! IP: %s\n", WiFi.localIP().toString().c_str());
 
-    // I2C
-    Wire.begin(PIN_SDA, PIN_SCL);
-
-    // Sensors
-    initToFSensors();
-    initIMU();
-
     // Camera
     if (!initCamera()) {
         Serial.println("FATAL: Camera init failed. Halting.");
@@ -342,7 +227,6 @@ void setup() {
     }
 
     // FreeRTOS tasks
-    xTaskCreatePinnedToCore(safetyTask,    "safety",    4096, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(heartbeatTask, "heartbeat", 2048, NULL, 1, NULL, 1);
 
     Serial.println("Setup complete");

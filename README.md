@@ -10,13 +10,12 @@ MacBook Air (M5, 24GB)                    ESP32-S3-WROOM (N16R8)
   +-----------------+                      +------------------+
   | camera_node     |<--- MJPEG/HTTP ------|  OV3660 camera   |
   | motor_node      |---- UDP:4210 ------->|  L298N motors    |
-  | safety_monitor  |                      |  3x VL53L0X ToF  |
-  | teleop_key_node |                      |  MPU-6050 IMU    |
-  +-----------------+                      +------------------+
-        |                                        |
-    Foxglove Studio                    Local safety: ToF < 150mm
-    (visualization)                    cuts motors regardless of
-                                       UDP commands
+  | safety_monitor  |                      +------------------+
+  | teleop_key_node |
+  +-----------------+
+        |
+    Foxglove Studio
+    (visualization)
 ```
 
 ## Hardware
@@ -27,8 +26,6 @@ MacBook Air (M5, 24GB)                    ESP32-S3-WROOM (N16R8)
 | Camera | OV3660 (VGA MJPEG over HTTP) |
 | Motors | 2x 12V 100RPM DC, differential drive |
 | Motor Driver | L298N H-bridge |
-| ToF Sensors | 3x VL53L0X (front, left, right) |
-| IMU | MPU-6050 (6-axis) |
 | Power | 12V from USB-C PD trigger, 5V via LM2596 buck to ESP32 |
 | Inference Host | MacBook Air M5 24GB |
 
@@ -45,13 +42,6 @@ MacBook Air (M5, 24GB)                    ESP32-S3-WROOM (N16R8)
 | ENB (Right PWM) | 16 | L298N ENB |
 | IN3 (Right Dir 1) | 17 | L298N IN3 |
 | IN4 (Right Dir 2) | 18 | L298N IN4 |
-| **VL53L0X XSHUT** | | |
-| Front XSHUT | 1 | VL53L0X front XSHUT |
-| Left XSHUT | 2 | VL53L0X left XSHUT |
-| Right XSHUT | 42 | VL53L0X right XSHUT |
-| **I2C Bus** | | |
-| SDA | 8 | VL53L0X SDA + MPU-6050 SDA |
-| SCL | 9 | VL53L0X SCL + MPU-6050 SCL |
 | **Camera (OV3660)** | | |
 | XCLK | 10 | CAM XCLK |
 | SIOD | 40 | CAM SDA |
@@ -75,16 +65,6 @@ MacBook Air (M5, 24GB)                    ESP32-S3-WROOM (N16R8)
 - 12V from PD trigger to L298N VCC and LM2596 input
 - LM2596 output (5V) to ESP32 VIN
 - L298N 5V regulator jumper removed (powered externally)
-- All VL53L0X and MPU-6050 powered from ESP32 3.3V
-
-### I2C Addresses
-
-| Device | Address |
-|---|---|
-| VL53L0X Front | 0x30 (reassigned via XSHUT) |
-| VL53L0X Left | 0x31 (reassigned via XSHUT) |
-| VL53L0X Right | 0x32 (reassigned via XSHUT) |
-| MPU-6050 | 0x68 (default) |
 
 ## Setup
 
@@ -146,4 +126,4 @@ Open Foxglove Studio and import `foxglove/trashcan_layout.json`.
 
 ### Safety
 
-The ESP32 reads all three ToF sensors every 50ms in a dedicated FreeRTOS task. If any sensor reads less than 150mm, motors are immediately set to 0,0 regardless of incoming UDP commands. The ROS2 safety_monitor_node provides additional software-side speed clamping and logging, but the hardware-level cutoff on the ESP32 is the authoritative safety layer.
+The ESP32 firmware applies motor commands directly from UDP with no on-board obstacle detection. All safety logic (obstacle avoidance, speed clamping, emergency stop) is handled at the software level on the laptop by the ROS2 `safety_monitor_node`, which processes the camera feed and any future sensor inputs to gate motor commands before they are sent over UDP.

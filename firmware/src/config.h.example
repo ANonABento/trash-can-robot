@@ -12,15 +12,6 @@
 #define PIN_IN3   17   // Right motor direction 1
 #define PIN_IN4   18   // Right motor direction 2
 
-// ----- VL53L0X ToF Sensor XSHUT Pins -----
-#define PIN_XSHUT_FRONT  1
-#define PIN_XSHUT_LEFT   2
-#define PIN_XSHUT_RIGHT  42
-
-// ----- I2C Pins -----
-#define PIN_SDA  8
-#define PIN_SCL  9
-
 // ----- Camera Pins (OV3660 on ESP32-S3-WROOM) -----
 #define PIN_CAM_PWDN   -1   // Not used
 #define PIN_CAM_RESET  -1   // Not used
