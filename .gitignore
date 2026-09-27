@@ -1,0 +1,6 @@
+firmware/src/config.h
+__pycache__/
+build/
+.ros/
+install/
+log/

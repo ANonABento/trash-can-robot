@@ -1,0 +1,42 @@
+{
+  "configById": {
+    "Image!1": {
+      "cameraTopic": "/camera/image_compressed",
+      "rotation": 0,
+      "synchronize": false
+    },
+    "Plot!1": {
+      "paths": [
+        { "value": "/cmd_vel.linear.x", "enabled": true, "timestampMethod": "receiveTime" },
+        { "value": "/cmd_vel.angular.z", "enabled": true, "timestampMethod": "receiveTime" }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "maxXValue": 30
+    },
+    "3D!1": {
+      "followTf": "",
+      "scene": {}
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "linkedGlobalVariables": [],
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": "Image!1",
+      "second": "Plot!1",
+      "splitPercentage": 60
+    },
+    "second": "3D!1",
+    "splitPercentage": 70
+  }
+}

@@ -1,0 +1,43 @@
+// WiFi credentials
+#define WIFI_SSID "your_ssid"
+#define WIFI_PASS "your_password"
+
+// ----- L298N Motor Driver Pins -----
+// Motor A (Left)
+#define PIN_ENA   6    // PWM enable for left motor
+#define PIN_IN1   7    // Left motor direction 1
+#define PIN_IN2   15   // Left motor direction 2
+// Motor B (Right)
+#define PIN_ENB   16   // PWM enable for right motor
+#define PIN_IN3   17   // Right motor direction 1
+#define PIN_IN4   18   // Right motor direction 2
+
+// ----- VL53L0X ToF Sensor XSHUT Pins -----
+#define PIN_XSHUT_FRONT  1
+#define PIN_XSHUT_LEFT   2
+#define PIN_XSHUT_RIGHT  42
+
+// ----- I2C Pins -----
+#define PIN_SDA  8
+#define PIN_SCL  9
+
+// ----- Camera Pins (OV3660 on ESP32-S3-WROOM) -----
+#define PIN_CAM_PWDN   -1   // Not used
+#define PIN_CAM_RESET  -1   // Not used
+#define PIN_CAM_XCLK   10
+#define PIN_CAM_SIOD   40
+#define PIN_CAM_SIOC   39
+#define PIN_CAM_D7     48
+#define PIN_CAM_D6     11
+#define PIN_CAM_D5     12
+#define PIN_CAM_D4     14
+#define PIN_CAM_D3     13
+#define PIN_CAM_D2     47
+#define PIN_CAM_D1     21
+#define PIN_CAM_D0     38
+#define PIN_CAM_VSYNC  46
+#define PIN_CAM_HREF   45
+#define PIN_CAM_PCLK   41
+
+// ----- Built-in LED -----
+#define PIN_LED  2
