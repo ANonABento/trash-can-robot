@@ -3,32 +3,33 @@
 #define WIFI_PASS "your_password"
 
 // ----- L298N Motor Driver Pins -----
+// Moved to GPIOs that don't conflict with camera (camera uses 4-18, 38)
 // Motor A (Left)
-#define PIN_ENA   6    // PWM enable for left motor
-#define PIN_IN1   7    // Left motor direction 1
-#define PIN_IN2   15   // Left motor direction 2
+#define PIN_ENA   19   // PWM enable for left motor
+#define PIN_IN1   20   // Left motor direction 1
+#define PIN_IN2   21   // Left motor direction 2
 // Motor B (Right)
-#define PIN_ENB   16   // PWM enable for right motor
-#define PIN_IN3   17   // Right motor direction 1
-#define PIN_IN4   18   // Right motor direction 2
+#define PIN_ENB   47   // PWM enable for right motor
+#define PIN_IN3   48   // Right motor direction 1
+#define PIN_IN4   45   // Right motor direction 2
 
-// ----- Camera Pins (OV3660 on ESP32-S3-WROOM) -----
-#define PIN_CAM_PWDN   -1   // Not used
-#define PIN_CAM_RESET  -1   // Not used
-#define PIN_CAM_XCLK   10
-#define PIN_CAM_SIOD   40
-#define PIN_CAM_SIOC   39
-#define PIN_CAM_D7     48
-#define PIN_CAM_D6     11
-#define PIN_CAM_D5     12
-#define PIN_CAM_D4     14
-#define PIN_CAM_D3     13
-#define PIN_CAM_D2     47
-#define PIN_CAM_D1     21
-#define PIN_CAM_D0     38
-#define PIN_CAM_VSYNC  46
-#define PIN_CAM_HREF   45
-#define PIN_CAM_PCLK   41
+// ----- Camera Pins (OV3660 on FORIOT ESP32-S3-WROOM N16R8) -----
+#define PIN_CAM_PWDN   38   // Power down
+#define PIN_CAM_RESET  -1   // Software reset (not wired)
+#define PIN_CAM_XCLK   15
+#define PIN_CAM_SIOD   4    // I2C SDA
+#define PIN_CAM_SIOC   5    // I2C SCL
+#define PIN_CAM_D7     16   // Y9
+#define PIN_CAM_D6     17   // Y8
+#define PIN_CAM_D5     18   // Y7
+#define PIN_CAM_D4     12   // Y6
+#define PIN_CAM_D3     10   // Y5
+#define PIN_CAM_D2     8    // Y4
+#define PIN_CAM_D1     9    // Y3
+#define PIN_CAM_D0     11   // Y2
+#define PIN_CAM_VSYNC  6
+#define PIN_CAM_HREF   7
+#define PIN_CAM_PCLK   13
 
 // ----- Built-in LED -----
 #define PIN_LED  2
