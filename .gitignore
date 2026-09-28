@@ -4,3 +4,4 @@ build/
 .ros/
 install/
 log/
+.router-creds
