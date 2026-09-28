@@ -1,7 +1,7 @@
 // Trash Can Robot — parametric chassis parts.
 // All dimensions come from params.scad. Pick what to render with -D 'part="..."':
 //   assembly (default), saddle, motor_cradle, wheel, caster_mount, caster_fork,
-//   caster_wheel, caster_bushing, skid, l298n_mount, lm2596_mount, cam_cradle,
+//   caster_wheel, caster_bushing, skid, l298n_mount, lm2596_mount, cam_cradle, cam_fit_test,
 //   bank_strap, can_tab, eye_tab, eye, eye_pupil, drill_template (2D, export SVG)
 // Printable parts are modelled in print orientation. The assembly places them.
 //
@@ -21,6 +21,15 @@ module hang(x = 0, y = 0, rz = 0)
     translate([x, y, ride_h]) mirror([0, 0, 1]) rotate([0, 0, rz]) children();
 
 module screw_hole(h = 50) cylinder(d = wood_screw_d, h = h, center = true);
+
+// M3 through the board: countersunk head flush on the board top, nut trapped in
+// a hex pocket in the part's far face (z = t), so it all tightens from above.
+module board_bolt(t) {
+    cylinder(d = m3_clear_d, h = 50, center = true);
+    translate([0, 0, t - m3_nut_t - 0.4]) cylinder(d = (m3_nut_af + fit) / cos(30), h = 10, $fn = 6);
+}
+// shortest stock M3 length that passes the nut
+function m3_len(t) = let (need = board_t + t) [for (l = [8, 10, 12, 16, 20, 25, 30]) if (l >= need) l][0];
 
 // Rectangular flange plate with a wood-screw hole at each listed [x, y].
 module flange(size, holes, t = 4) {
@@ -258,15 +267,27 @@ module cam_cradle_frame() {
     }
 }
 
+cam_flange_t = 6;
 module cam_cradle() {
     fw = cam_w + 2 * (fit + rail) + 24;
     intersection() {
         union() {
             translate([0, 0, 4]) rotate([-cam_tilt, 0, 0]) cam_cradle_frame();
-            translate([0, -9, 0]) flange([fw, 36], [[fw / 2 - 5, 0], [-(fw / 2 - 5), 0]], 4);
+            translate([0, -9, 0]) difference() {
+                translate([-fw / 2, -18, 0]) cube([fw, 36, cam_flange_t]);
+                for (s = [-1, 1]) translate([s * (fw / 2 - 5), 0, 0]) board_bolt(cam_flange_t);
+            }
         }
         translate([-200, -200, 0]) cube([400, 400, 400]);
     }
+}
+echo(str("cam_cradle: 2x M3x", m3_len(cam_flange_t), " countersunk + nut"));
+
+// The cradle's free end, 12mm of it, standing on its cut face: print this first
+// and slide the PCB in to check the rail fit before the full cradle.
+module cam_fit_test() translate([0, 0, -(cam_len - 8)]) intersection() {
+    cam_cradle_frame();
+    translate([-50, -50, cam_len - 8]) cube([100, 100, 12]);
 }
 
 // ---------------------------------------------------------------- battery, can
@@ -551,7 +572,7 @@ module drill_template() {
 
 print_parts = ["saddle", "motor_cradle", "wheel", "caster_mount", "caster_fork",
                "caster_wheel", "caster_bushing", "skid", "l298n_mount",
-               "lm2596_mount", "cam_cradle", "bank_strap", "can_tab", "eye_tab", "eye", "eye_pupil"];
+               "lm2596_mount", "cam_cradle", "cam_fit_test", "bank_strap", "can_tab", "eye_tab", "eye", "eye_pupil"];
 
 module print_part(p) {
     if (p == "saddle") translate([0, 0, sw / 2]) rotate([0, 90, 0]) saddle();
@@ -565,6 +586,7 @@ module print_part(p) {
     else if (p == "l298n_mount") l298n_mount();
     else if (p == "lm2596_mount") lm2596_mount();
     else if (p == "cam_cradle") cam_cradle();
+    else if (p == "cam_fit_test") cam_fit_test();
     else if (p == "bank_strap") translate([0, 0, 7.5]) rotate([0, 90, 0]) bank_strap();
     else if (p == "can_tab") can_tab();
     else if (p == "eye_tab") can_tab(1);

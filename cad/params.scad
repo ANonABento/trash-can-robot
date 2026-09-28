@@ -3,8 +3,8 @@
 // guess. Remeasure the [DEFAULT]s, edit, run ./render.sh.
 
 // ---------- Chassis: round cutting board ----------
-board_d      = 356;   // [DEFAULT] ~35.6cm per user, to confirm
-board_t      = 12;    // [DEFAULT] cutting board thickness
+board_d      = 357;   // [MEASURED]
+board_t      = 7;     // [MEASURED] HDPE: too thin for wood screws, parts bolt through
 // The board's handle hole (a slot with round ends), turned to the back.
 handle_w     = 90;    // [DEFAULT] slot length, end to end
 handle_h     = 25;    // [DEFAULT] slot width
@@ -105,6 +105,8 @@ lm2596_pos   = [-75, -70];
 wood_screw_d = 3.8;   // clearance for #6 / 3.5mm screws into the board
 m3_tap_d     = 2.8;   // M3 self-tapping into plastic
 m3_clear_d   = 3.4;
+m3_nut_af    = 5.5;   // M3 nut across flats
+m3_nut_t     = 2.4;
 standoff_h   = 5;
 wall         = 3;
 fit          = 0.3;   // clearance added to press/slide fits
