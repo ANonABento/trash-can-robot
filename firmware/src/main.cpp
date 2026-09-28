@@ -236,7 +236,30 @@ void onUdpPacket(AsyncUDPPacket &packet) {
 // WiFi: join WIFI_SSID, or host our own AP if that doesn't work (e.g. guest
 // networks with client isolation, which block UDP/HTTP between devices).
 // ---------------------------------------------------------------------------
+static volatile int lastDisconnectReason = 0;
+
+static const char *disconnectReasonName(int r) {
+    switch (r) {
+        case WIFI_REASON_AUTH_EXPIRE:              return "AUTH_EXPIRE";
+        case WIFI_REASON_AUTH_FAIL:                return "AUTH_FAIL (wrong password?)";
+        case WIFI_REASON_ASSOC_FAIL:               return "ASSOC_FAIL";
+        case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:   return "4WAY_HANDSHAKE_TIMEOUT (wrong password?)";
+        case WIFI_REASON_HANDSHAKE_TIMEOUT:        return "HANDSHAKE_TIMEOUT (wrong password?)";
+        case WIFI_REASON_NO_AP_FOUND:              return "NO_AP_FOUND";
+        case WIFI_REASON_BEACON_TIMEOUT:           return "BEACON_TIMEOUT";
+        case WIFI_REASON_ASSOC_LEAVE:              return "ASSOC_LEAVE";
+        case WIFI_REASON_CONNECTION_FAIL:          return "CONNECTION_FAIL";
+        default:                                   return "other";
+    }
+}
+
 void startWifi() {
+    WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t info) {
+        lastDisconnectReason = info.wifi_sta_disconnected.reason;
+        Serial.printf("\nWIFI_DISCONNECT reason=%d %s\n", lastDisconnectReason,
+                      disconnectReasonName(lastDisconnectReason));
+    }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     Serial.printf("Connecting to %s", WIFI_SSID);
@@ -250,7 +273,9 @@ void startWifi() {
         return;
     }
 
-    Serial.printf("\nCould not join %s, starting AP \"%s\"\n", WIFI_SSID, WIFI_AP_SSID);
+    Serial.printf("\nWIFI_FAIL status=%d last_reason=%d %s\n", WiFi.status(),
+                  lastDisconnectReason, disconnectReasonName(lastDisconnectReason));
+    Serial.printf("Could not join %s, starting AP \"%s\"\n", WIFI_SSID, WIFI_AP_SSID);
     WiFi.disconnect(true);
     WiFi.mode(WIFI_AP);
     if (WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASS)) {
