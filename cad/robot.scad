@@ -74,8 +74,6 @@ module motor_bracket() {
         // 6 slotted M3 holes, one at 12 o'clock (toward the board)
         for (a = [0:60:359]) translate([-1, 0, motor_zc]) rotate([a, 0, 0]) rotate([0, 90, 0])
             hull() for (r = gb_pcd_range / 2) translate([r, 0, 0]) cylinder(d = m3_clear_d, h = mbr_t + 2, $fn = 24);
-        // case screw heads at 3 and 9 o'clock: clear through
-        for (s = [-1, 1]) translate([-1, s * gb_case_r, motor_zc]) rotate([0, 90, 0]) cylinder(d = 6.5, h = mbr_t + 2, $fn = 32);
         for (b = mbr_bolts) translate([b[0], b[1], 0]) board_bolt(mbr_fl_t);
     }
 }

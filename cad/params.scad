@@ -52,13 +52,11 @@ shaft_d      = 6;     // [DEFAULT] spec, D-shaft
 shaft_flat   = 5.5;   // [DEFAULT] across the D flat
 shaft_l      = 14;    // [DEFAULT] spec
 shaft_offset = 0;     // [MEASURED] centric (photo)
-// Gearbox face: 6x M3 threaded holes, 60 deg apart; the 2 case screws sit between
-// two of them (at 3 and 9 o'clock with a hole at 12) and must stay clear.
+// Gearbox face: 6x M3 threaded holes, 60 deg apart, one at 12 o'clock. Face is flush [MEASURED].
 gb_holes_pcd = 28;    // [MEASURED ~28, tape] opposite hole to opposite hole; slots cover gb_pcd_range
 gb_pcd_range = [27, 32];  // slotted so a 28 or a 31 PCD gearbox both fit
 gb_thread    = 4;     // [LISTING] M3x6 with their ~2mm steel bracket = ~4mm into the gearbox; deeper can hit the gears
 gb_boss_d    = 12;    // [PHOTO] raised ring around the shaft
-gb_case_r    = 15;    // [PHOTO] case screw heads, radius from the shaft
 
 // ---------- Wheels (printed by default) ----------
 wheel_d      = 80;    // [DEFAULT]
