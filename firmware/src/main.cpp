@@ -270,6 +270,8 @@ void startWifi() {
     }
     if (WiFi.status() == WL_CONNECTED) {
         Serial.printf("\nConnected! IP: %s\n", WiFi.localIP().toString().c_str());
+        // Modem sleep adds 100-200ms latency spikes, close to CMD_TIMEOUT_MS.
+        WiFi.setSleep(false);
         return;
     }
 
