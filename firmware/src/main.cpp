@@ -4,6 +4,7 @@
 #include <esp_camera.h>
 #include <esp_http_server.h>
 #include <ArduinoJson.h>
+#include <mbedtls/base64.h>
 
 #include "config.h"
 
@@ -233,8 +234,51 @@ void setup() {
 }
 
 // ---------------------------------------------------------------------------
+// Serial command: CAPTURE — dumps one JPEG frame as base64 over serial
+// ---------------------------------------------------------------------------
+static String serialBuf;
+
+void handleSerial() {
+    while (Serial.available()) {
+        char c = (char)Serial.read();
+        if (c == '\n' || c == '\r') {
+            serialBuf.trim();
+            if (serialBuf.equalsIgnoreCase("CAPTURE")) {
+                camera_fb_t *fb = esp_camera_fb_get();
+                if (!fb) {
+                    Serial.println("CAPTURE_ERR: camera frame failed");
+                } else {
+                    size_t maxLen = ((fb->len + 2) / 3) * 4 + 1;
+                    uint8_t *b64buf = (uint8_t *)malloc(maxLen);
+                    if (!b64buf) {
+                        Serial.println("CAPTURE_ERR: malloc failed");
+                    } else {
+                        size_t outLen = 0;
+                        mbedtls_base64_encode(b64buf, maxLen, &outLen, fb->buf, fb->len);
+                        Serial.println("FRAME_START");
+                        // Send in 76-char chunks so serial buffers don't choke
+                        for (size_t i = 0; i < outLen; i += 76) {
+                            size_t chunkLen = min((size_t)76, outLen - i);
+                            Serial.write(b64buf + i, chunkLen);
+                            Serial.println();
+                        }
+                        Serial.println("FRAME_END");
+                        free(b64buf);
+                    }
+                    esp_camera_fb_return(fb);
+                }
+            }
+            serialBuf = "";
+        } else {
+            serialBuf += c;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Loop (idle -- work is in FreeRTOS tasks and callbacks)
 // ---------------------------------------------------------------------------
 void loop() {
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    handleSerial();
+    vTaskDelay(pdMS_TO_TICKS(10));
 }
