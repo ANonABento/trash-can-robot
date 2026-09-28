@@ -1,7 +1,8 @@
 // Trash Can Robot — parametric chassis parts.
 // All dimensions come from params.scad. Pick what to render with -D 'part="..."':
-//   assembly (default), saddle, motor_cradle, wheel, caster_riser, l298n_mount,
-//   lm2596_mount, cam_cradle, bank_strap, can_tab, drill_template (2D, export SVG)
+//   assembly (default), saddle, motor_cradle, wheel, caster_mount, caster_fork,
+//   caster_wheel, caster_bushing, skid, l298n_mount, lm2596_mount, cam_cradle,
+//   bank_strap, can_tab, drill_template (2D, export SVG)
 // Printable parts are modelled in print orientation. The assembly places them.
 //
 // Layout: the cutting board is the chassis. The can sits on top; motors,
@@ -109,16 +110,94 @@ module wheel() {
 
 // ---------------------------------------------------------------- casters
 
-module caster_riser() {
-    px = caster_plate[0];
-    py = caster_plate[1] + 24;
+// Swivel caster, three printed parts plus bolts:
+//   caster_mount  screws to the board; M8 bolt head trapped in its top face
+//   caster_fork   holds the 608 (or caster_bushing) in a pocket, swivels on the bolt
+//   caster_wheel  spins on an M4 bolt through the fork legs
+// Stack on the M8, top down: head (in the mount), mount, collar, bearing inner
+// race, washer, nyloc. The collar and washer only touch the inner race, so the
+// fork turns freely; snug the nyloc, don't crank it.
+caster_leg_t = 5;
+caster_gap   = 1;                                     // wheel to leg, each side
+caster_fw    = caster_wheel_w + 2 * (caster_gap + caster_leg_t);
+collar_d     = 11.5;                                  // under a 608 inner race (12mm OD)
+lip_hole_d   = 17;                                    // washer reaches the inner race; outer race sits on the lip
+m8_head_af   = 13;
+
+module caster_mount() {
+    fl = [64, 30];
     difference() {
-        translate([-px / 2, -py / 2, 0]) cube([px, py, riser_h]);
-        for (s = [-1, 1]) {
-            translate([s * caster_hole_sp / 2, 0, riser_h - 12]) cylinder(d = m3_tap_d, h = 13);
-            translate([0, s * (py / 2 - 6), 0]) screw_hole();
-            translate([0, s * (py / 2 - 6), 6]) cylinder(d = 8, h = riser_h);   // counterbore for the driver
+        union() {
+            flange(fl, [], 5);
+            cylinder(d = brg_od + 12, h = caster_mount_h);
+            translate([0, 0, caster_mount_h]) cylinder(d = collar_d, h = 1);
         }
+        cylinder(d = pivot_bolt_d, h = 3 * caster_mount_h, center = true);
+        translate([0, 0, -1]) cylinder(d = m8_head_af / cos(30) + fit, h = 6.5, $fn = 6);  // head trap, board side
+        for (s = [-1, 1]) translate([s * (fl[0] / 2 - 6), 0, 0]) screw_hole();
+    }
+}
+
+// Fork frame: pivot on the z axis, z=0 = plate top, wheel axle at y=-trail below.
+caster_axle_zl = caster_wr + caster_lift - (caster_plate_bot + caster_plate_t);
+
+module caster_fork() {
+    bw = 20;   // leg width along y
+    difference() {
+        union() {
+            hull() {
+                translate([0, 0, -caster_plate_t]) cylinder(d = brg_od + 8, h = caster_plate_t);
+                translate([-caster_fw / 2, -caster_trail - bw / 2, -caster_plate_t]) cube([caster_fw, bw, caster_plate_t]);
+            }
+            for (sx = [-1, 1]) mirror([sx < 0 ? 1 : 0, 0, 0])
+                hull() {
+                    translate([caster_fw / 2 - caster_leg_t, -caster_trail - bw / 2, -caster_plate_t]) cube([caster_leg_t, bw, 1]);
+                    translate([caster_fw / 2 - caster_leg_t, -caster_trail, caster_axle_zl]) rotate([0, 90, 0]) cylinder(d = bw * 0.7, h = caster_leg_t);
+                }
+        }
+        translate([0, 0, -brg_t]) cylinder(d = brg_od + fit / 2, h = brg_t + 1);   // bearing pocket, opens toward the mount
+        cylinder(d = lip_hole_d, h = 50, center = true);
+        translate([0, -caster_trail, caster_axle_zl]) rotate([0, 90, 0]) cylinder(d = caster_axle_d, h = 60, center = true);
+    }
+}
+
+module caster_wheel() {
+    hub_boss = caster_gap - 0.3;   // spacers on the hub so the wheel can't rub the legs
+    translate([0, 0, hub_boss]) difference() {
+        union() {
+            cylinder(r = caster_wr, h = caster_wheel_w);
+            for (z = [-hub_boss, caster_wheel_w]) translate([0, 0, z]) cylinder(d = 10, h = hub_boss);
+        }
+        cylinder(d = caster_axle_d + fit, h = 3 * caster_wheel_w, center = true);
+        for (a = [0:60:359]) rotate([0, 0, a]) translate([caster_wr * 0.55, 0, -1]) cylinder(d = caster_wr * 0.45, h = caster_wheel_w + 2);
+        if (tire_groove > 0)
+            translate([0, 0, 2]) difference() {
+                cylinder(r = caster_wr + 1, h = caster_wheel_w - 4);
+                translate([0, 0, -1]) cylinder(r = caster_wr - tire_groove / 2, h = caster_wheel_w);
+            }
+    }
+}
+
+// PLA stand-in for the 608: same outside size, so the fork doesn't change when
+// you swap. Grease it; the fork turns on its outside.
+module caster_bushing() {
+    difference() {
+        cylinder(d = brg_od, h = brg_t);
+        translate([0, 0, -1]) cylinder(d = pivot_bolt_d + fit, h = brg_t + 2);
+    }
+}
+
+// Domed post that sits skid_gap off the floor: harmless in normal driving,
+// catches the board if a hard stop rocks the can forward.
+module skid() {
+    h = ride_h - skid_gap;
+    difference() {
+        union() {
+            flange([40, 16], [], 5);
+            cylinder(d = 14, h = h - 7);
+            translate([0, 0, h - 7]) sphere(d = 14);
+        }
+        for (s = [-1, 1]) translate([s * 14, 0, 0]) screw_hole();
     }
 }
 
@@ -240,7 +319,7 @@ module can_tab() {
 tab_list = can_shape == "round"
     ? [for (a = [45:90:315]) let (r = can_base_d / 2 + can_clear) [r * cos(a), r * sin(a), a]]
     : let (x = can_w / 2 + can_clear, y = can_dp / 2 + can_clear)
-      [[x, -tab_offset, 0], [-x, tab_offset, 180], [tab_offset, y, 90], [-tab_offset, -y, 270]];
+      [[x, tab_side_y, 0], [-x, tab_side_y, 180], [tab_offset, y, 90], [-tab_offset, -y, 270]];
 
 function rot2(v, a) = [v[0] * cos(a) - v[1] * sin(a), v[0] * sin(a) + v[1] * cos(a)];
 tab_bolts = [for (t = tab_list, s = [-1, 1]) [t[0], t[1]] + rot2([tab_bolt_x, s * tab_bolt_y], t[2])];
@@ -251,6 +330,14 @@ echo(str("can tabs: fit ", can_shape == "round"
     : str(can_w - tab_slide, "-", can_w + tab_slide, " x ", can_dp - tab_slide, "-", can_dp + tab_slide),
     " mm; outermost bolt ", round(max_bolt_r), " of ", board_r, " mm radius"));
 if (max_bolt_r > board_r - 10) echo("WARNING: can tab bolts too close to the board edge — lower tab_offset or tab_bolt_y");
+
+// Swivel caster: the fork must clear the pivot nut, and stay on the board as it swings.
+caster_swing_r = norm([caster_trail + caster_wr, caster_fw / 2]);
+nut_clear = (caster_plate_bot - 12) - (caster_wr + caster_lift + sqrt(max(0, caster_wr ^ 2 - caster_trail ^ 2)));
+echo(str("caster: mount ", caster_mount_h, " mm tall, swings to ", round(norm([0, caster_y]) + caster_swing_r),
+    " of ", board_r, " mm radius; M8 nut clears the wheel by ", round(nut_clear), " mm"));
+if (nut_clear < 2) echo("WARNING: caster wheel hits the pivot nut — raise caster_trail");
+if (caster_mount_h < 8) echo("WARNING: caster too tall for ride height — shrink caster_wheel_d");
 
 // ---------------------------------------------------------------- stand-ins for bought parts
 
@@ -267,11 +354,10 @@ module ghost_pcb(size, h, c) {
     color("black", 0.6) translate([-size[0] / 4, -size[1] / 4, 4.6 + standoff_h]) cube([size[0] / 2, size[1] / 2, h - 1.6]);
 }
 
-module ghost_caster() {
-    color("silver") {
-        translate([-caster_plate[0] / 2, -caster_plate[1] / 2, caster_h - 3]) cube([caster_plate[0], caster_plate[1], 3]);
-        translate([0, 0, 12.7]) sphere(d = 25.4);
-        translate([0, 0, 10]) cylinder(d = 30, h = caster_h - 12);
+module ghost_bearing() {   // 608, same frame as the bushing
+    color("silver") difference() {
+        cylinder(d = brg_od, h = brg_t);
+        translate([0, 0, -1]) cylinder(d = 8, h = brg_t + 2);
     }
 }
 
@@ -283,11 +369,11 @@ cam_y    = board_r - cam_from_edge - 6;
 
 module under_parts() {
     for (s = [-1, 1]) mirror([s < 0 ? 1 : 0, 0, 0]) {
-        hang(saddle_x, 0) saddle();
-        hang(cradle_x, 0) motor_cradle();
+        hang(saddle_x, drive_y) saddle();
+        hang(cradle_x, drive_y) motor_cradle();
     }
-    hang(0, front_caster_y) caster_riser();
-    hang(0, rear_caster_y) caster_riser();
+    hang(0, caster_y) caster_mount();
+    if (skid_gap > 0) for (p = skid_pos) hang(p[0], p[1]) skid();
     hang(l298n_pos[0], l298n_pos[1]) l298n_mount();
     hang(lm2596_pos[0], lm2596_pos[1]) lm2596_mount();
     hang(0, cam_y) cam_cradle();
@@ -316,10 +402,15 @@ module assembly() {
     color("orange") top_parts();
 
     for (s = [-1, 1]) mirror([s < 0 ? 1 : 0, 0, 0]) {
-        translate([gearbox_face_x, 0, wheel_r]) ghost_motor();
-        color("dimgray") translate([wheel_cx - wheel_w / 2, 0, wheel_r]) rotate([0, 90, 0]) wheel();
+        translate([gearbox_face_x, drive_y, wheel_r]) ghost_motor();
+        color("dimgray") translate([wheel_cx - wheel_w / 2, drive_y, wheel_r]) rotate([0, 90, 0]) wheel();
     }
-    for (y = [front_caster_y, rear_caster_y]) translate([0, y, caster_lift]) ghost_caster();
+    // caster, trailing backward as it would driving forward
+    translate([0, caster_y, caster_plate_bot + caster_plate_t]) {
+        color("orange") caster_fork();
+        translate([0, 0, -brg_t]) ghost_bearing();
+        color("dimgray") translate([-caster_wheel_w / 2 - caster_gap, -caster_trail, caster_axle_zl]) rotate([0, 90, 0]) caster_wheel();
+    }
     hang(l298n_pos[0], l298n_pos[1]) ghost_pcb(l298n, l298n_h, "red");
     hang(lm2596_pos[0], lm2596_pos[1]) ghost_pcb(lm2596, lm2596_h, "blue");
     color("darkslategray") translate([-bank[0] / 2, bank_y - bank[1] / 2, ride_h - bank[2]]) cube(bank);
@@ -348,14 +439,19 @@ module drill_template() {
 
 // ---------------------------------------------------------------- print orientation
 
-print_parts = ["saddle", "motor_cradle", "wheel", "caster_riser", "l298n_mount",
+print_parts = ["saddle", "motor_cradle", "wheel", "caster_mount", "caster_fork",
+               "caster_wheel", "caster_bushing", "skid", "l298n_mount",
                "lm2596_mount", "cam_cradle", "bank_strap", "can_tab"];
 
 module print_part(p) {
     if (p == "saddle") translate([0, 0, sw / 2]) rotate([0, 90, 0]) saddle();
     else if (p == "motor_cradle") translate([0, 0, 6]) rotate([0, 90, 0]) motor_cradle();
     else if (p == "wheel") wheel();
-    else if (p == "caster_riser") caster_riser();
+    else if (p == "caster_mount") caster_mount();                          // flange down
+    else if (p == "caster_fork") rotate([180, 0, 0]) caster_fork();       // plate down, legs up
+    else if (p == "caster_wheel") caster_wheel();
+    else if (p == "caster_bushing") caster_bushing();
+    else if (p == "skid") skid();
     else if (p == "l298n_mount") l298n_mount();
     else if (p == "lm2596_mount") lm2596_mount();
     else if (p == "cam_cradle") cam_cradle();
@@ -363,7 +459,7 @@ module print_part(p) {
     else if (p == "can_tab") can_tab();
 }
 
-// Every part in print orientation on a 3x3 grid, labelled — for pictures, not printing.
+// Every part in print orientation on a 3-wide grid, labelled — for pictures, not printing.
 module parts_sheet() {
     pitch = 140;
     for (i = [0:len(print_parts) - 1]) translate([(i % 3) * pitch, -floor(i / 3) * pitch, 0]) {

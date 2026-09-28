@@ -17,7 +17,7 @@ can_clear    = 1.5;   // gap between can and tab wall at mid-slide
 
 // ---------- Can tabs: slotted, slide to fit, M4 bolt + nut through the board ----------
 tab_slide    = 40;    // slot travel. Each tab adjusts +-tab_slide/2
-tab_offset   = 60;    // rect: tabs sit this far off each side's center (pinwheel), clears motors/wheels
+tab_offset   = 60;    // rect: front/back tabs sit this far off center, opposite sides
 tab_w        = 24;    // wall width
 tab_wall_h   = 40;    // wall height; taller = more tip resistance
 tab_bolt_d   = 4.5;   // M4 clearance
@@ -38,17 +38,31 @@ shaft_offset = 0;     // [DEFAULT] 0 = centric listing, ~7 if yours is eccentric
 // ---------- Wheels (printed by default) ----------
 wheel_d      = 80;    // [DEFAULT]
 wheel_w      = 20;
-tire_groove  = 3;     // groove for a rubber band / O-ring / TPU tire, 0 = none
+tire_groove  = 4;     // 2mm deep groove for an O-ring, rubber band or inner-tube strip; 0 = none
 edge_margin  = 6;     // wheel outer face inset from the board edge
 
-// ---------- Casters ----------
-caster_h        = 25; // [DEFAULT] 1" ball caster, floor to mounting face
-caster_hole_sp  = 38; // [DEFAULT] mounting hole spacing
-caster_hole_d   = 3.4;
-caster_plate    = [48, 30]; // [DEFAULT] mounting plate footprint
-caster_lift     = 1;  // casters sit this much high so drive wheels keep traction
-front_caster_y  = 110;
-rear_caster_y   = -135;
+// ---------- Drive layout ----------
+// One rear caster, so the drive axle sits ahead of the can's center: the can's
+// weight then lands inside the wheel-wheel-caster triangle.
+drive_y      = 40;    // drive axle, forward of board center
+tab_side_y   = -40;   // rect: left/right can tabs, kept clear of the motors
+
+// ---------- Swivel caster (printed, rear) ----------
+// M8 pivot bolt through a 608 skate bearing, or the printed caster_bushing
+// (same size) until you have one. Wheel spins on an M4 bolt.
+caster_y       = -125; // pivot position
+caster_wheel_d = 50;
+caster_wheel_w = 16;
+caster_trail   = 22;   // axle trails the pivot, so the wheel self-aligns
+caster_axle_d  = 4.4;  // M4 clearance, wheel spins on the bolt
+pivot_bolt_d   = 8.4;  // M8 clearance = 608 bore
+brg_od         = 22;   // 608 bearing / bushing
+brg_t          = 7;
+caster_lift    = 1;    // caster sits this much high so the drive wheels keep traction
+
+// ---------- Front skids: stop the can tipping forward on hard braking ----------
+skid_gap     = 8;     // floor clearance; 0 = no skids
+skid_pos     = [[110, 118], [-110, 118]];
 
 // ---------- Electronics ----------
 l298n        = [43, 43]; // [DEFAULT]
@@ -67,8 +81,8 @@ bank         = [134, 71, 25]; // [DEFAULT] INIU 20000mAh (B5 size) — L, W, H
 bank_y       = 45;
 
 // ---------- Board positions (underside, board center = origin, +y = front) ----------
-l298n_pos    = [0, -45];
-lm2596_pos   = [0, -95];
+l298n_pos    = [0, -35];
+lm2596_pos   = [0, -78];
 
 // ---------- Fasteners / print ----------
 wood_screw_d = 3.8;   // clearance for #6 / 3.5mm screws into the board
@@ -88,4 +102,7 @@ ride_h       = wheel_r + axle_below;            // floor to board underside
 wheel_cx     = board_r - edge_margin - wheel_w / 2;
 gearbox_face_x = wheel_cx - wheel_w / 2 - 1.5;  // inner end of the gearbox
 motor_total_l  = gearbox_l + motor_l + motor_tail_l;
-riser_h      = ride_h - caster_h - caster_lift;
+caster_wr    = caster_wheel_d / 2;
+caster_plate_t   = brg_t + 1.5;                                  // fork top plate, bearing pocket + lip
+caster_plate_bot = caster_wheel_d + caster_lift + 3;              // 3mm over the wheel
+caster_mount_h   = ride_h - caster_plate_bot - caster_plate_t - 1; // 1mm collar gap
