@@ -277,6 +277,7 @@ cam_end = 2.4;    // antenna-end wall
 lip_t   = 1.2;
 lip_over = 1.5;   // how far the pocket lip reaches over the tab tip
 ant_slack = 1.5;  // extra pocket length: the screw holes locate x, not the tab tip
+ant_shoulder_gap = 2; // side blocks stop this short of the PCB shoulders, so they never locate x either
 ledge   = 2;
 usb_x0  = cam_xu - esp32_usb_clear + 1;   // 1mm clear of the last header
 usb_relief = 2.5; // the USB shells' legs poke through the back between the corners
@@ -293,13 +294,14 @@ module cam_cradle_frame(beam_top = -4) difference() {
     x0 = cam_xa - fit - ant_slack - cam_end;
     xa = cam_xa - fit - ant_slack;   // pocket end
     zb = cam_W + fit + ledge;
+    ant_side_l = fit + ant_slack + ant_l - ant_shoulder_gap;   // tab tip to just short of the shoulders
     union() {
         // beam over the top edge; the PCB's top edge stops against it
         translate([x0, -cam_bk, beam_top]) cube([cam_xu - x0, cam_bk + cam_T, -fit - beam_top]);
         // antenna end: wall, blocks either side of the tab, back pad under it, lip over its tip
         translate([x0, -cam_bk, beam_top]) cube([cam_end, cam_bk + ant_t + fit + lip_t, zb - beam_top]);
-        translate([xa, -cam_bk, -fit]) cube([ant_l + ant_slack, cam_bk + ant_t + fit + lip_t, ant_z0]);
-        translate([xa, -cam_bk, ant_z1 + fit]) cube([ant_l + ant_slack, cam_bk + ant_t + fit + lip_t, zb - ant_z1 - fit]);
+        translate([xa, -cam_bk, -fit]) cube([ant_side_l, cam_bk + ant_t + fit + lip_t, ant_z0]);
+        translate([xa, -cam_bk, ant_z1 + fit]) cube([ant_side_l, cam_bk + ant_t + fit + lip_t, zb - ant_z1 - fit]);
         translate([xa, -cam_bk, 0]) cube([ant_l + ant_slack, cam_bk, cam_W]);
         translate([xa, ant_t + fit, 0]) cube([lip_over + ant_slack + fit, lip_t, cam_W]);
         // USB end: back block, pads under the bare corners, ledge under the bottom edge
