@@ -234,61 +234,90 @@ lm2596_hole_list = [[-lm2596_holes[0] / 2, -lm2596_holes[1] / 2], [lm2596_holes[
 module l298n_mount()  pcb_mount(l298n, l298n_hole_list);
 module lm2596_mount() pcb_mount(lm2596, lm2596_hole_list);
 
-// Tilted channel for the ESP32-S3-CAM (the camera is on the PCB, so this is also
-// the camera bracket). PCB slides in from the free end, held by two zip ties.
-// Built in a PCB frame (x = across, y = out of the camera face, z = down the PCB),
-// then tilted so the camera looks forward and cam_tilt degrees up.
-cam_len = esp32[0];
-cam_w   = esp32[1];
-cam_t   = esp32[2];
-lip     = 1.2;          // how far the front lips overlap the PCB edge
-rail    = 2.5;
-back_y  = -esp32_pin_clear;
+// Sideways cradle for the ESP32-S3-CAM (the camera is on the PCB, so this is also
+// the camera bracket). Headers cover both long edges front and back, so only the
+// short ends are held: the antenna tab (ant_*) slides into a pocket, then the USB end
+// swings back and two snap hooks click over its bare front corners. The back stays
+// open for the dupont wires, the right end for the USB plugs.
+// Built in a PCB frame: x along the PCB (lens at 0, USB end +x), y out of the
+// camera face (PCB back at 0), z down the PCB width (top edge at 0).
+cam_L   = esp32[0];
+cam_W   = esp32[1];
+cam_T   = esp32[2];
+cam_xa  = -esp32_lens;          // antenna tab tip
+cam_xu  = cam_L - esp32_lens;   // USB edge
+ant_l   = esp32_tab[0];
+ant_w   = esp32_tab[1];
+ant_t   = esp32_tab[2];
+ant_z0  = cam_W / 2 - ant_w / 2;
+ant_z1  = cam_W / 2 + ant_w / 2;
+cam_bk  = 10;     // solid depth behind the PCB; this face prints on the bed
+cam_end = 2.4;    // antenna-end wall
+lip_t   = 1.2;
+lip_over = 1.5;   // how far the pocket lip reaches over the tab tip
+hook_w  = 1.2;    // snap arm thickness; flexes along x
+hook_ov = 0.8;    // how far a hook bites over the PCB front
+hook_ramp = 1.6;
+ledge   = 2;
+gap     = 0.8;    // printable gap that keeps the snap arms free
+usb_x0  = cam_xu - esp32_usb_clear + 1;   // 1mm clear of the last header
+usb_relief = 2.5; // the USB shells' legs poke through the back between the corners
 
-module cam_cradle_frame() {
-    top = -16;   // rails run past the PCB top so the clip at the board plane is solid
-    difference() {
-        union() {
-            for (s = [-1, 1]) {   // side rails
-                translate([s > 0 ? cam_w / 2 - lip : -(cam_w / 2 + fit + rail), back_y - 2, top])
-                    cube([lip + fit + rail, cam_t + fit + 2 - back_y + 2, cam_len + 4 - top]);
-            }
-            translate([-(cam_w / 2 + fit + rail), back_y - 2, top]) cube([cam_w + 2 * (fit + rail), 2, cam_len + 4 - top]);  // back plate
-            translate([-(cam_w / 2 + fit + rail), back_y, top]) cube([cam_w + 2 * (fit + rail), -back_y, 3 - top]);          // top stop + ledge
-        }
-        // PCB slot (edges run in the grooves)
-        translate([-(cam_w / 2 + fit), 0, 0]) cube([cam_w + 2 * fit, cam_t + fit, cam_len + 10]);
-        // open face in front of the PCB, between the lips
-        translate([-(cam_w / 2 - lip), 0, 0]) cube([cam_w - 2 * lip, 20, cam_len + 10]);
-        // header pins + dupont housings behind the PCB, below the ledge
-        translate([-(cam_w / 2 - 0.5), back_y, 3]) cube([cam_w - 1, -back_y, cam_len + 10]);
-        // zip-tie notches across the back plate
-        for (z = [cam_len * 0.45, cam_len - 6]) translate([-50, back_y - 3, z]) cube([100, 1.6, 4]);
+// frame -> hang coordinates, and the placement that does it
+function cam_to_hang(p) = [p[0], p[1] * cos(cam_tilt) + p[2] * sin(cam_tilt),
+                           cam_drop - p[1] * sin(cam_tilt) + p[2] * cos(cam_tilt)];
+module cam_place() translate([0, 0, cam_drop]) rotate([-cam_tilt, 0, 0]) children();
+module cam_unplace() rotate([cam_tilt, 0, 0]) translate([0, 0, -cam_drop]) children();
+
+module cam_cradle_frame(beam_top = -4) {
+    x0 = cam_xa - fit - cam_end;
+    zb = cam_W + fit + ledge;
+    // beam over the top edge; the PCB's top edge stops against it
+    translate([x0, -cam_bk, beam_top]) cube([cam_xu - gap - x0, cam_bk + cam_T, -fit - beam_top]);
+    // antenna end: wall, blocks either side of the tab, back pad under it, lip over its tip
+    translate([x0, -cam_bk, beam_top]) cube([cam_end, cam_bk + ant_t + fit + lip_t, zb - beam_top]);
+    translate([cam_xa - fit, -cam_bk, -fit]) cube([ant_l, cam_bk + ant_t + fit + lip_t, ant_z0]);
+    translate([cam_xa - fit, -cam_bk, ant_z1 + fit]) cube([ant_l, cam_bk + ant_t + fit + lip_t, zb - ant_z1 - fit]);
+    translate([cam_xa - fit, -cam_bk, 0]) cube([ant_l, cam_bk, cam_W]);
+    translate([cam_xa - fit, ant_t + fit, 0]) cube([lip_over + fit, lip_t, cam_W]);
+    // USB end: block behind the header-free strip, pads on the bare corners, ledge under the bottom edge
+    translate([usb_x0, -cam_bk, beam_top]) cube([cam_xu - gap - usb_x0, cam_bk - usb_relief, zb - beam_top]);
+    for (z = [0, cam_W - esp32_corner]) translate([usb_x0, -usb_relief, z]) cube([cam_xu - gap - usb_x0, usb_relief, esp32_corner]);
+    translate([usb_x0, -cam_bk, cam_W + fit]) cube([cam_xu - gap - usb_x0, cam_bk + cam_T, ledge]);
+    // snap hooks: arms rooted at the back, ramps over the front corners
+    for (z = [0, cam_W - esp32_corner]) translate([0, 0, z]) {
+        translate([usb_x0, -cam_bk, 0]) cube([cam_xu + fit + hook_w - usb_x0, 1.5, esp32_corner]);
+        linear_extrude(esp32_corner) polygon([
+            [cam_xu + fit, -cam_bk], [cam_xu + fit + hook_w, -cam_bk],
+            [cam_xu + fit + hook_w, cam_T + fit + hook_ramp], [cam_xu + fit, cam_T + fit + hook_ramp],
+            [cam_xu - hook_ov, cam_T + fit + 0.3], [cam_xu - hook_ov, cam_T + fit], [cam_xu + fit, cam_T + fit]]);
     }
 }
 
 cam_flange_t = 6;
-module cam_cradle() {
-    fw = cam_w + 2 * (fit + rail) + 24;
-    intersection() {
-        union() {
-            translate([0, 0, 4]) rotate([-cam_tilt, 0, 0]) cam_cradle_frame();
-            translate([0, -9, 0]) difference() {
-                translate([-fw / 2, -18, 0]) cube([fw, 36, cam_flange_t]);
-                for (s = [-1, 1]) translate([s * (fw / 2 - 5), 0, 0]) board_bolt(cam_flange_t);
-            }
+cam_fl_back  = cam_to_hang([0, -cam_bk, -(cam_drop + cam_bk * sin(cam_tilt)) / cos(cam_tilt)])[1];
+cam_fl_front = cam_to_hang([0, cam_T, -(cam_drop - cam_T * sin(cam_tilt)) / cos(cam_tilt)])[1] + 3;
+cam_fl_x     = [cam_xa - fit - cam_end - 11, cam_xu + fit + hook_w + 10];
+cam_fl_bolts = [for (x = [cam_fl_x[0] + 5.5, cam_fl_x[1] - 5.5]) [x, (cam_fl_back + cam_fl_front) / 2 + 1.5]];
+
+// The whole cradle, in the PCB frame: frame, beam run up to a flange on the board.
+module cam_cradle_body() intersection() {
+    union() {
+        cam_cradle_frame(-60);
+        cam_unplace() difference() {
+            translate([cam_fl_x[0], cam_fl_back - 5, 0]) cube([cam_fl_x[1] - cam_fl_x[0], cam_fl_front - cam_fl_back + 5, cam_flange_t]);
+            for (b = cam_fl_bolts) translate([b[0], b[1], 0]) board_bolt(cam_flange_t);
         }
-        translate([-200, -200, 0]) cube([400, 400, 400]);
     }
+    translate([-200, -cam_bk, -200]) cube(400);   // flat back
+    cam_unplace() translate([-200, -200, 0]) cube(400);   // nothing above the board underside
 }
+module cam_cradle() cam_place() cam_cradle_body();
 echo(str("cam_cradle: 2x M3x", m3_len(cam_flange_t), " countersunk + nut"));
 
-// The cradle's free end, 12mm of it, standing on its cut face: print this first
-// and slide the PCB in to check the rail fit before the full cradle.
-module cam_fit_test() translate([0, 0, -(cam_len - 8)]) intersection() {
-    cam_cradle_frame();
-    translate([-50, -50, cam_len - 8]) cube([100, 100, 12]);
-}
+// Just the frame: both end clamps, the ledge and the top beam, to check the fit
+// before printing the flange. Prints on its back like the full cradle.
+module cam_fit_test() cam_cradle_frame();
 
 // ---------------------------------------------------------------- battery, can
 
@@ -484,7 +513,18 @@ module ghost_bearing() {   // 608, same frame as the bushing
 
 saddle_x = gearbox_face_x - gearbox_l / 2;
 cradle_x = gearbox_face_x - gearbox_l - motor_l / 2;
-cam_y    = board_r - cam_from_edge - 6;
+cam_lens = cam_to_hang([0, cam_T + esp32_lens_proud, cam_W / 2]);   // lens tip, cradle-relative
+cam_y    = board_r - cam_from_edge - cam_lens[1];
+
+cam_view = atan((cam_lens[2]) / cam_from_edge);
+if (cam_view < cam_tilt + cam_vfov / 2)
+    echo(str("WARNING: the board edge is in the camera view (edge at ", round(cam_view), " deg up, view reaches ",
+             cam_tilt + cam_vfov / 2, ") — raise cam_drop or lower cam_from_edge"));
+for (p = [[cam_xu + fit + hook_w, cam_T + fit + hook_ramp, cam_W], [cam_xu - gap, cam_T, cam_W + fit + ledge],
+          [cam_xa - fit - cam_end, ant_t + fit + lip_t, cam_W + fit + ledge]])
+    let (h = cam_to_hang(p)) if (norm([h[0], cam_y + h[1]]) > board_r)
+        echo(str("WARNING: the camera cradle pokes past the board rim at x=", p[0], " — raise cam_from_edge"));
+echo(str("camera: lens ", round(cam_lens[2]), " mm under the board, ", cam_from_edge, " mm behind the edge"));
 
 module under_parts() {
     for (s = [-1, 1]) mirror([s < 0 ? 1 : 0, 0, 0]) {
@@ -533,9 +573,10 @@ module assembly() {
     hang(l298n_pos[0], l298n_pos[1]) ghost_pcb(l298n, l298n_h, "red");
     hang(lm2596_pos[0], lm2596_pos[1]) ghost_pcb(lm2596, lm2596_h, "blue");
     color("darkslategray") translate([-bank[0] / 2, bank_y - bank[1] / 2, ride_h - bank[2]]) cube(bank);
-    hang(0, cam_y) translate([0, 0, 4]) rotate([-cam_tilt, 0, 0]) {
-        color("green") translate([-cam_w / 2, 0, 0]) cube([cam_w, cam_t, cam_len]);
-        color("black") translate([0, cam_t, 10]) rotate([-90, 0, 0]) cylinder(d = 8, h = 5);
+    hang(0, cam_y) cam_place() {
+        color("green") translate([cam_xa + ant_l, 0, 0]) cube([cam_L - ant_l, cam_T, cam_W]);
+        color("green") translate([cam_xa, 0, ant_z0]) cube([ant_l, ant_t, ant_w]);
+        color("black") translate([0, cam_T, cam_W / 2]) rotate([-90, 0, 0]) cylinder(d = 8, h = esp32_lens_proud);
     }
     for (t = tab_list) if (t[3] != 0) translate([t[0], t[1], ride_h + board_t]) rotate([0, 0, t[2]]) tab_eye(t[3]);
     if (show_can) %ghost_can();
@@ -585,8 +626,8 @@ module print_part(p) {
     else if (p == "skid") skid();
     else if (p == "l298n_mount") l298n_mount();
     else if (p == "lm2596_mount") lm2596_mount();
-    else if (p == "cam_cradle") cam_cradle();
-    else if (p == "cam_fit_test") cam_fit_test();
+    else if (p == "cam_cradle") translate([0, 0, cam_bk]) rotate([90, 0, 0]) cam_cradle_body();    // back down
+    else if (p == "cam_fit_test") translate([0, 0, cam_bk]) rotate([90, 0, 0]) cam_fit_test();
     else if (p == "bank_strap") translate([0, 0, 7.5]) rotate([0, 90, 0]) bank_strap();
     else if (p == "can_tab") can_tab();
     else if (p == "eye_tab") can_tab(1);

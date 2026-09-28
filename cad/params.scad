@@ -88,10 +88,17 @@ l298n_h      = 27;       // [DEFAULT] incl. heatsink
 lm2596       = [43, 21]; // [DEFAULT]
 lm2596_holes = [30, 16]; // [DEFAULT] two holes, diagonal corners
 lm2596_h     = 14;
-esp32        = [67.6, 28.1, 1.6]; // [LISTING] FORIOT ESP32-S3-CAM PCB (L, W, T), L includes the antenna overhang
-esp32_pin_clear = 16;    // header pins + dupont housings behind the PCB
+esp32        = [66, 27, 1.6];   // [MEASURED] FORIOT ESP32-S3-CAM PCB (L incl. antenna, W, T); T is nominal
+esp32_lens   = 17;              // [MEASURED] lens center from the antenna-end edge, centered across the width
+esp32_lens_proud = 8;           // [PHOTO] lens front, in front of the PCB face
+esp32_tab    = [5.5, 18, 2.6];  // [PHOTO] antenna tab past the header shoulders: length, width, thickness incl. module
+esp32_usb_clear = 10;           // [MEASURED] header-free strip on the back at the USB end
+esp32_corner = 4;               // [MEASURED] bare front corners beside the USB ports: where the snap hooks bite
+// Mounted sideways, USB end to the right, so both USB-C ports plug in from the side.
 cam_tilt     = 25;       // degrees upward. Baked into training data — don't change after collecting demos
-cam_from_edge = 5;       // how far the lens sits behind the board edge (the board blocks the view if too far)
+cam_vfov     = 55;       // [GUESS] vertical field of view, portrait (sensor long axis vertical)
+cam_drop     = 10;       // PCB top edge below the board underside
+cam_from_edge = 9;       // lens tip behind the board edge: the board must stay out of the view, the cradle inside the rim
 
 // ---------- Power bank ----------
 bank         = [134, 71, 25]; // [DEFAULT] INIU 20000mAh (B5 size) — L, W, H
