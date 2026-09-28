@@ -2,16 +2,24 @@
 #define WIFI_SSID "your_ssid"
 #define WIFI_PASS "your_password"
 
+// Fallback access point, started if WIFI_SSID doesn't connect within
+// WIFI_CONNECT_TIMEOUT_MS. Join it from the MacBook; the ESP32 is 192.168.4.1.
+#define WIFI_AP_SSID "trashcan-bot"
+#define WIFI_AP_PASS "trashcan123"   // min 8 chars — change this
+#define WIFI_CONNECT_TIMEOUT_MS 15000
+
 // ----- L298N Motor Driver Pins -----
-// Moved to GPIOs that don't conflict with camera (camera uses 4-18, 38)
+// Avoids: camera (4-13, 15-18, 38), USB D-/D+ (19, 20), strapping pins
+// (0, 3, 45, 46), UART0 (43, 44), octal PSRAM/flash (26-37), and the
+// on-board RGB LED (48). 39/40 are free spares while no SD card is used.
 // Motor A (Left)
-#define PIN_ENA   19   // PWM enable for left motor
-#define PIN_IN1   20   // Left motor direction 1
+#define PIN_ENA   1    // PWM enable for left motor
+#define PIN_IN1   14   // Left motor direction 1
 #define PIN_IN2   21   // Left motor direction 2
 // Motor B (Right)
 #define PIN_ENB   47   // PWM enable for right motor
-#define PIN_IN3   48   // Right motor direction 1
-#define PIN_IN4   45   // Right motor direction 2
+#define PIN_IN3   41   // Right motor direction 1
+#define PIN_IN4   42   // Right motor direction 2
 
 // ----- Camera Pins (OV3660 on FORIOT ESP32-S3-WROOM N16R8) -----
 #define PIN_CAM_PWDN   38   // Power down

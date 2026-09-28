@@ -33,32 +33,30 @@ MacBook Air (M5, 24GB)                    ESP32-S3-WROOM (N16R8)
 
 ### ESP32 GPIO Pin Assignments
 
+Source of truth is `firmware/src/config.h.example`.
+
 | Function | GPIO | Connected To |
 |---|---|---|
 | **L298N Motor Driver** | | |
-| ENA (Left PWM) | 6 | L298N ENA |
-| IN1 (Left Dir 1) | 7 | L298N IN1 |
-| IN2 (Left Dir 2) | 15 | L298N IN2 |
-| ENB (Right PWM) | 16 | L298N ENB |
-| IN3 (Right Dir 1) | 17 | L298N IN3 |
-| IN4 (Right Dir 2) | 18 | L298N IN4 |
+| ENA (Left PWM) | 1 | L298N ENA |
+| IN1 (Left Dir 1) | 14 | L298N IN1 |
+| IN2 (Left Dir 2) | 21 | L298N IN2 |
+| ENB (Right PWM) | 47 | L298N ENB |
+| IN3 (Right Dir 1) | 41 | L298N IN3 |
+| IN4 (Right Dir 2) | 42 | L298N IN4 |
 | **Camera (OV3660)** | | |
-| XCLK | 10 | CAM XCLK |
-| SIOD | 40 | CAM SDA |
-| SIOC | 39 | CAM SCL |
-| D7 | 48 | CAM D7 |
-| D6 | 11 | CAM D6 |
-| D5 | 12 | CAM D5 |
-| D4 | 14 | CAM D4 |
-| D3 | 13 | CAM D3 |
-| D2 | 47 | CAM D2 |
-| D1 | 21 | CAM D1 |
-| D0 | 38 | CAM D0 |
-| VSYNC | 46 | CAM VSYNC |
-| HREF | 45 | CAM HREF |
-| PCLK | 41 | CAM PCLK |
+| PWDN | 38 | CAM PWDN |
+| XCLK | 15 | CAM XCLK |
+| SIOD | 4 | CAM SDA |
+| SIOC | 5 | CAM SCL |
+| D7–D0 (Y9–Y2) | 16, 17, 18, 12, 10, 8, 9, 11 | CAM D7–D0 |
+| VSYNC | 6 | CAM VSYNC |
+| HREF | 7 | CAM HREF |
+| PCLK | 13 | CAM PCLK |
 | **Status LED** | | |
 | LED | 2 | Built-in LED |
+
+Motor pins avoid USB D-/D+ (19, 20), strapping pins (0, 3, 45, 46), UART0 (43, 44), octal PSRAM/flash (26–37) and the RGB LED (48). GPIO 39/40 are free spares.
 
 ### Power
 
@@ -80,6 +78,14 @@ cd firmware
 pio run -t upload
 pio device monitor  # check serial output
 ```
+
+The ESP32 joins `WIFI_SSID`. If that fails within 15 s it hosts its own network, `trashcan-bot` (password in `config.h`), at `192.168.4.1` — use that where guest WiFi isolates clients.
+
+Serial test commands (115200 baud), no WiFi needed:
+
+- `MOTOR <l> <r> [ms]` — drive the motors (-255..255) for `ms` (default 1000, max 5000)
+- `STOP` — stop the motors
+- `CAPTURE` — dump one JPEG as base64 (`python3 capture.py <port>` saves it)
 
 ### 2. ROS2 Nodes (MacBook)
 
@@ -118,6 +124,7 @@ Open Foxglove Studio and import `foxglove/trashcan_layout.json`.
 - Format: JSON `{"l": <int>, "r": <int>}`
 - Values: -255 to 255 (negative = reverse)
 - `l` = left motor PWM, `r` = right motor PWM
+- Failsafe: the ESP32 stops both motors if no command arrives for 300 ms. `motor_node` re-sends the latest command at 20 Hz and sends zeros once `/cmd_vel_safe` has been quiet for 0.6 s.
 
 ### MJPEG Stream (ESP32 -> MacBook)
 
@@ -126,4 +133,4 @@ Open Foxglove Studio and import `foxglove/trashcan_layout.json`.
 
 ### Safety
 
-The ESP32 firmware applies motor commands directly from UDP with no on-board obstacle detection. All safety logic (obstacle avoidance, speed clamping, emergency stop) is handled at the software level on the laptop by the ROS2 `safety_monitor_node`, which processes the camera feed and any future sensor inputs to gate motor commands before they are sent over UDP.
+The ESP32's only safeguard is the command timeout above. There is no obstacle detection yet: the ToF sensors were dropped, and `safety_monitor_node` only clamps speeds. Obstacle gating belongs in that node, between `/cmd_vel` and `/cmd_vel_safe`.

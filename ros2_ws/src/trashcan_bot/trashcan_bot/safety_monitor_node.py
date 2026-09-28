@@ -1,8 +1,8 @@
 """Safety monitor node: passes /cmd_vel through to /cmd_vel_safe with logging.
 
-Actual safety enforcement (obstacle cutoff) is on the ESP32.
-This node provides a software-side logging layer and a clean separation
-between user intent (/cmd_vel) and commanded output (/cmd_vel_safe).
+It only clamps speeds. There is no obstacle detection anywhere yet: the ToF
+sensors were dropped, and the ESP32's only safeguard is stopping when UDP
+commands stop arriving. This node is where obstacle gating will go.
 """
 
 import math
@@ -30,8 +30,7 @@ class SafetyMonitorNode(Node):
 
         self.get_logger().info(
             f'Safety monitor active. Limits: linear={self.max_linear:.2f} m/s, '
-            f'angular={self.max_angular:.2f} rad/s. '
-            f'Hardware safety cutoff is on ESP32 (ToF < 150mm).'
+            f'angular={self.max_angular:.2f} rad/s. No obstacle detection.'
         )
 
     def _cmd_vel_cb(self, msg: Twist):

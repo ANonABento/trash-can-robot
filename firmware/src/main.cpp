@@ -19,13 +19,33 @@ static const uint32_t LEDC_FREQ        = 5000;
 static const uint8_t  LEDC_CH_ENA      = 0;
 static const uint8_t  LEDC_CH_ENB      = 1;
 
+// Motors stop if no UDP command arrives within this window. Senders must
+// repeat commands faster than this (motor_node sends at 20 Hz).
+static const uint32_t CMD_TIMEOUT_MS   = 300;
+// Upper bound for the serial MOTOR test command's duration.
+static const uint32_t SERIAL_MOTOR_MAX_MS = 5000;
+
+#ifndef WIFI_AP_SSID
+#define WIFI_AP_SSID "trashcan-bot"
+#endif
+#ifndef WIFI_AP_PASS
+#define WIFI_AP_PASS "trashcan123"
+#endif
+#ifndef WIFI_CONNECT_TIMEOUT_MS
+#define WIFI_CONNECT_TIMEOUT_MS 15000
+#endif
+
 // ---------------------------------------------------------------------------
 // Globals
 // ---------------------------------------------------------------------------
 AsyncUDP udp;
 
-volatile int16_t cmdLeft  = 0;
-volatile int16_t cmdRight = 0;
+// Latest command and the time it expires. Written by the UDP callback and
+// the serial handler, read by motorTask; guarded by cmdMux.
+static int16_t  cmdLeft       = 0;
+static int16_t  cmdRight      = 0;
+static uint32_t cmdDeadlineMs = 0;
+static portMUX_TYPE cmdMux    = portMUX_INITIALIZER_UNLOCKED;
 
 httpd_handle_t streamHttpd = NULL;
 
@@ -52,6 +72,44 @@ void setMotor(uint8_t in1, uint8_t in2, uint8_t ledcCh, int16_t speed) {
 void applyMotors(int16_t left, int16_t right) {
     setMotor(PIN_IN1, PIN_IN2, LEDC_CH_ENA, left);
     setMotor(PIN_IN3, PIN_IN4, LEDC_CH_ENB, right);
+}
+
+void setCommand(int16_t left, int16_t right, uint32_t holdMs) {
+    portENTER_CRITICAL(&cmdMux);
+    cmdLeft       = constrain(left, -255, 255);
+    cmdRight      = constrain(right, -255, 255);
+    cmdDeadlineMs = millis() + holdMs;
+    portEXIT_CRITICAL(&cmdMux);
+}
+
+// Sole owner of the motor pins. Applies the latest command, or stops the
+// motors once it expires, so a dropped link or dead laptop can't leave the
+// robot driving on its last command.
+void motorTask(void *pvParameters) {
+    (void)pvParameters;
+    int16_t appliedL = 0, appliedR = 0;
+    bool timedOut = true;
+    for (;;) {
+        portENTER_CRITICAL(&cmdMux);
+        int16_t  l        = cmdLeft;
+        int16_t  r        = cmdRight;
+        uint32_t deadline = cmdDeadlineMs;
+        portEXIT_CRITICAL(&cmdMux);
+
+        bool expired = (int32_t)(millis() - deadline) >= 0;
+        if (expired) { l = 0; r = 0; }
+        if (expired && !timedOut && (appliedL || appliedR)) {
+            Serial.println("FAILSAFE: command timeout, motors stopped");
+        }
+        timedOut = expired;
+
+        if (l != appliedL || r != appliedR) {
+            applyMotors(l, r);
+            appliedL = l;
+            appliedR = r;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -167,19 +225,39 @@ void heartbeatTask(void *pvParameters) {
 // ---------------------------------------------------------------------------
 void onUdpPacket(AsyncUDPPacket &packet) {
     // Parse JSON: {"l": <int>, "r": <int>}
-    StaticJsonDocument<64> doc;
+    JsonDocument doc;
     DeserializationError err = deserializeJson(doc, packet.data(), packet.length());
     if (err) return;
 
-    int16_t l = doc["l"] | 0;
-    int16_t r = doc["r"] | 0;
-    l = constrain(l, -255, 255);
-    r = constrain(r, -255, 255);
+    setCommand(doc["l"] | 0, doc["r"] | 0, CMD_TIMEOUT_MS);
+}
 
-    cmdLeft  = l;
-    cmdRight = r;
+// ---------------------------------------------------------------------------
+// WiFi: join WIFI_SSID, or host our own AP if that doesn't work (e.g. guest
+// networks with client isolation, which block UDP/HTTP between devices).
+// ---------------------------------------------------------------------------
+void startWifi() {
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    Serial.printf("Connecting to %s", WIFI_SSID);
+    uint32_t start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < WIFI_CONNECT_TIMEOUT_MS) {
+        delay(500);
+        Serial.print(".");
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.printf("\nConnected! IP: %s\n", WiFi.localIP().toString().c_str());
+        return;
+    }
 
-    applyMotors(cmdLeft, cmdRight);
+    Serial.printf("\nCould not join %s, starting AP \"%s\"\n", WIFI_SSID, WIFI_AP_SSID);
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_AP);
+    if (WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASS)) {
+        Serial.printf("AP up. IP: %s\n", WiFi.softAPIP().toString().c_str());
+    } else {
+        Serial.println("AP start failed (password must be 8+ chars)");
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -202,15 +280,9 @@ void setup() {
     ledcAttachPin(PIN_ENB, LEDC_CH_ENB);
 
     applyMotors(0, 0);
+    xTaskCreatePinnedToCore(motorTask, "motors", 3072, NULL, 3, NULL, 1);
 
-    // WiFi
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-    Serial.print("Connecting to WiFi");
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.printf("\nConnected! IP: %s\n", WiFi.localIP().toString().c_str());
+    startWifi();
 
     // Camera
     if (!initCamera()) {
@@ -234,16 +306,40 @@ void setup() {
 }
 
 // ---------------------------------------------------------------------------
-// Serial command: CAPTURE — dumps one JPEG frame as base64 over serial
+// Serial commands:
+//   CAPTURE            — dumps one JPEG frame as base64 over serial
+//   MOTOR <l> <r> [ms] — drives the motors (-255..255) for ms (default 1000,
+//                        max 5000), then the failsafe stops them
+//   STOP               — stops the motors immediately
 // ---------------------------------------------------------------------------
 static String serialBuf;
+
+void handleMotorCommand(const String &args) {
+    int l = 0, r = 0, ms = 1000;
+    int n = sscanf(args.c_str(), "%d %d %d", &l, &r, &ms);
+    if (n < 2) {
+        Serial.println("MOTOR_ERR: usage MOTOR <l> <r> [ms]");
+        return;
+    }
+    ms = constrain(ms, 0, (int)SERIAL_MOTOR_MAX_MS);
+    setCommand(l, r, ms);
+    Serial.printf("MOTOR_OK l=%d r=%d ms=%d\n", constrain(l, -255, 255),
+                  constrain(r, -255, 255), ms);
+}
 
 void handleSerial() {
     while (Serial.available()) {
         char c = (char)Serial.read();
         if (c == '\n' || c == '\r') {
             serialBuf.trim();
-            if (serialBuf.equalsIgnoreCase("CAPTURE")) {
+            String upper = serialBuf;
+            upper.toUpperCase();
+            if (upper.startsWith("MOTOR ")) {
+                handleMotorCommand(serialBuf.substring(6));
+            } else if (upper == "STOP") {
+                setCommand(0, 0, 0);
+                Serial.println("STOP_OK");
+            } else if (upper == "CAPTURE") {
                 camera_fb_t *fb = esp_camera_fb_get();
                 if (!fb) {
                     Serial.println("CAPTURE_ERR: camera frame failed");
