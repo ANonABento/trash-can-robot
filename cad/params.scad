@@ -51,7 +51,14 @@ motor_tail_l = 6;     // [DEFAULT] brush cap / terminals behind the can
 shaft_d      = 6;     // [DEFAULT] spec, D-shaft
 shaft_flat   = 5.5;   // [DEFAULT] across the D flat
 shaft_l      = 14;    // [DEFAULT] spec
-shaft_offset = 0;     // [DEFAULT] 0 = centric listing, ~7 if yours is eccentric
+shaft_offset = 0;     // [MEASURED] centric (photo)
+// Gearbox face: 6x M3 threaded holes, 60 deg apart; the 2 case screws sit between
+// two of them (at 3 and 9 o'clock with a hole at 12) and must stay clear.
+gb_holes_pcd = 28;    // [MEASURED ~28, tape] opposite hole to opposite hole; slots cover gb_pcd_range
+gb_pcd_range = [27, 32];  // slotted so a 28 or a 31 PCD gearbox both fit
+gb_thread    = 4;     // [LISTING] M3x6 with their ~2mm steel bracket = ~4mm into the gearbox; deeper can hit the gears
+gb_boss_d    = 12;    // [PHOTO] raised ring around the shaft
+gb_case_r    = 15;    // [PHOTO] case screw heads, radius from the shaft
 
 // ---------- Wheels (printed by default) ----------
 wheel_d      = 80;    // [DEFAULT]
@@ -88,7 +95,7 @@ l298n_h      = 27;       // [DEFAULT] incl. heatsink
 lm2596       = [43, 21]; // [DEFAULT]
 lm2596_holes = [30, 16]; // [DEFAULT] two holes, diagonal corners
 lm2596_h     = 14;
-esp32        = [66, 27, 1.6];   // [MEASURED] FORIOT ESP32-S3-CAM PCB (L incl. antenna, W, T); T is nominal
+esp32        = [66, 28.1, 1.6]; // [LISTING 28.1; tape said 27, too tight] FORIOT ESP32-S3-CAM PCB (L incl. antenna, W, T); T is nominal
 esp32_lens   = 17;              // [MEASURED] lens center from the antenna-end edge, centered across the width
 esp32_lens_proud = 8;           // [PHOTO] lens front, in front of the PCB face
 esp32_tab    = [5.5, 18, 2.6];  // [PHOTO] antenna tab past the header shoulders: length, width, thickness incl. module
@@ -128,7 +135,10 @@ wheel_r      = wheel_d / 2;
 axle_below   = wheel_r + 4;
 ride_h       = wheel_r + axle_below;            // floor to board underside
 wheel_cx     = board_r - edge_margin - wheel_w / 2;
-gearbox_face_x = wheel_cx - wheel_w / 2 - 1.5;  // inner end of the gearbox
+mbr_t        = 4;                                // motor bracket face plate, between gearbox and wheel
+wheel_gap    = 1;                                // plate to wheel hub
+gearbox_face_x = wheel_cx - wheel_w / 2 - wheel_gap - mbr_t;  // gearbox face (shaft end)
+shaft_in_wheel = shaft_l - mbr_t - wheel_gap;   // how much shaft the wheel hub gets
 motor_total_l  = gearbox_l + motor_l + motor_tail_l;
 handle_cy    = -(board_r - handle_from_edge - handle_h / 2);
 caster_wr    = caster_wheel_d / 2;

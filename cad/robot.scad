@@ -1,6 +1,6 @@
 // Trash Can Robot — parametric chassis parts.
 // All dimensions come from params.scad. Pick what to render with -D 'part="..."':
-//   assembly (default), saddle, motor_cradle, wheel, caster_mount, caster_fork,
+//   assembly (default), motor_bracket, motor_cradle, wheel, caster_mount, caster_fork,
 //   caster_wheel, caster_bushing, skid, l298n_mount, lm2596_mount, cam_cradle, cam_fit_test,
 //   bank_strap, can_tab, eye_tab, eye, eye_pupil, drill_template (2D, export SVG)
 // Printable parts are modelled in print orientation. The assembly places them.
@@ -41,27 +41,48 @@ module flange(size, holes, t = 4) {
 
 // ---------------------------------------------------------------- motor mounts
 
-sw = 20;                                  // saddle width along the motor axis
-ring_r = gearbox_d / 2 + 4;
 motor_zc = axle_below - shaft_offset;     // gearbox/can axis, below the board
 
-// Pinch-clamp ring around the gearbox.
-module saddle() {
+// Face-mount L-bracket: the gearbox face screws to a plate (6 slotted M3 holes, so
+// a 28 or a 31 PCD both fit), a flange on top bolts through the board, two ribs
+// tie them together. Local x = along the motor axis, plate at x 0..mbr_t with the
+// gearbox on the -x side and the wheel on the +x side.
+mbr_w      = gearbox_d + 4;               // plate width
+mbr_fl_t   = 5;                           // flange thickness
+mbr_fl_l   = 26;                          // flange length inboard of the plate
+mbr_fl_w   = mbr_w + 20;                  // flange width, bolts outside the ribs
+mbr_rib_t  = 4;
+mbr_rib_h  = motor_zc - gearbox_d / 2 - 1;   // ribs stop just above the gearbox
+mbr_plate_r = gb_pcd_range[1] / 2 + 5;
+mbr_bolts  = [for (x = [-6, -mbr_fl_l + 6], s = [-1, 1]) [x, s * (mbr_fl_w / 2 - 5)]];
+
+module motor_bracket() {
     difference() {
         union() {
-            hull() {
-                translate([-sw / 2, -ring_r, 0]) cube([sw, 2 * ring_r, 1]);
-                translate([0, 0, motor_zc]) rotate([0, 90, 0]) cylinder(r = ring_r, h = sw, center = true);
+            translate([-mbr_fl_l, -mbr_fl_w / 2, 0]) cube([mbr_fl_l + mbr_t, mbr_fl_w, mbr_fl_t]);
+            // plate: straight sides down to the axis, round below it
+            translate([0, 0, 0]) rotate([0, 90, 0]) linear_extrude(mbr_t) hull() {
+                translate([-motor_zc, 0]) circle(r = mbr_plate_r);
+                translate([-1, -mbr_w / 2]) square([1, mbr_w]);
             }
-            flange([sw, 2 * ring_r + 24], [], 5);
-            translate([-sw / 2, -7, motor_zc + ring_r - 3]) cube([sw, 14, 10]);   // pinch boss
+            for (s = [-1, 1]) translate([0, s * (mbr_w / 2 - mbr_rib_t / 2) - mbr_rib_t / 2, 0])
+                rotate([90, 0, 0]) mirror([0, 0, 1]) linear_extrude(mbr_rib_t) polygon([
+                    [0, 0], [-(mbr_fl_l - 2), 0], [0, mbr_rib_h]]);
         }
-        translate([0, 0, motor_zc]) rotate([0, 90, 0]) cylinder(d = gearbox_d + fit, h = sw + 2, center = true);
-        translate([-sw / 2 - 1, -0.75, motor_zc]) cube([sw + 2, 1.5, ring_r + 20]);  // clamp slit
-        translate([0, 0, motor_zc + ring_r + 2]) rotate([90, 0, 0]) cylinder(d = m3_clear_d, h = 40, center = true);
-        for (s = [-1, 1]) translate([0, s * (ring_r + 6), 0]) screw_hole();
+        // boss and shaft
+        translate([-1, 0, motor_zc]) rotate([0, 90, 0]) cylinder(d = gb_boss_d + 1, h = mbr_t + 2);
+        // 6 slotted M3 holes, one at 12 o'clock (toward the board)
+        for (a = [0:60:359]) translate([-1, 0, motor_zc]) rotate([a, 0, 0]) rotate([0, 90, 0])
+            hull() for (r = gb_pcd_range / 2) translate([r, 0, 0]) cylinder(d = m3_clear_d, h = mbr_t + 2, $fn = 24);
+        // case screw heads at 3 and 9 o'clock: clear through
+        for (s = [-1, 1]) translate([-1, s * gb_case_r, motor_zc]) rotate([0, 90, 0]) cylinder(d = 6.5, h = mbr_t + 2, $fn = 32);
+        for (b = mbr_bolts) translate([b[0], b[1], 0]) board_bolt(mbr_fl_t);
     }
 }
+echo(str("motor_bracket: 6x M3x", mbr_t + gb_thread, " (no longer!)", " into the gearbox, 4x M3x", m3_len(mbr_fl_t),
+         " countersunk + nut through the board; wheel gets ", shaft_in_wheel, " mm of shaft"));
+if (shaft_in_wheel < 8) echo(str("WARNING: only ", shaft_in_wheel, " mm of shaft in the wheel — thin the plate or check shaft_l"));
+if (gb_holes_pcd < gb_pcd_range[0] || gb_holes_pcd > gb_pcd_range[1]) echo("WARNING: gb_holes_pcd is outside the slots");
 
 // Zip-tie cradle under the motor can, so the motor isn't cantilevered off the gearbox.
 module motor_cradle() {
@@ -75,7 +96,7 @@ module motor_cradle() {
         translate([0, 0, motor_zc]) rotate([0, 90, 0]) cylinder(r = cr, h = cw + 2, center = true);
         // tie channel just above the can
         translate([-2, -50, motor_zc - cr - 5]) cube([4, 100, 2.5]);
-        for (s = [-1, 1]) translate([0, s * (cr + 10), 0]) screw_hole();
+        for (s = [-1, 1]) translate([0, s * (cr + 10), 0]) board_bolt(5);
     }
 }
 
@@ -91,7 +112,7 @@ module d_bore(h) {
 module wheel() {
     hub_r = 9;
     web_t = 4;
-    set_z = min(shaft_l, wheel_w) / 2;
+    set_z = min(shaft_in_wheel, wheel_w) / 2;   // middle of the shaft that's actually in the hub
     difference() {
         union() {
             difference() {
@@ -509,7 +530,6 @@ module ghost_bearing() {   // 608, same frame as the bushing
 
 // ---------------------------------------------------------------- assembly
 
-saddle_x = gearbox_face_x - gearbox_l / 2;
 cradle_x = gearbox_face_x - gearbox_l - motor_l / 2;
 cam_lens = cam_to_hang([0, cam_T + esp32_lens_proud, cam_W / 2]);   // lens tip, cradle-relative
 cam_y    = board_r - cam_from_edge - cam_lens[1];
@@ -526,7 +546,7 @@ echo(str("camera: lens ", round(cam_lens[2]), " mm under the board, ", cam_from_
 
 module under_parts() {
     for (s = [-1, 1]) mirror([s < 0 ? 1 : 0, 0, 0]) {
-        hang(saddle_x, drive_y) saddle();
+        hang(gearbox_face_x, drive_y) motor_bracket();
         hang(cradle_x, drive_y) motor_cradle();
     }
     hang(0, caster_y) caster_mount();
@@ -609,12 +629,12 @@ module drill_template() {
 
 // ---------------------------------------------------------------- print orientation
 
-print_parts = ["saddle", "motor_cradle", "wheel", "caster_mount", "caster_fork",
+print_parts = ["motor_bracket", "motor_cradle", "wheel", "caster_mount", "caster_fork",
                "caster_wheel", "caster_bushing", "skid", "l298n_mount",
                "lm2596_mount", "cam_cradle", "cam_fit_test", "bank_strap", "can_tab", "eye_tab", "eye", "eye_pupil"];
 
 module print_part(p) {
-    if (p == "saddle") translate([0, 0, sw / 2]) rotate([0, 90, 0]) saddle();
+    if (p == "motor_bracket") translate([0, 0, mbr_t]) rotate([0, 90, 0]) motor_bracket();   // plate face down
     else if (p == "motor_cradle") translate([0, 0, 6]) rotate([0, 90, 0]) motor_cradle();
     else if (p == "wheel") wheel();
     else if (p == "caster_mount") caster_mount();                          // flange down
