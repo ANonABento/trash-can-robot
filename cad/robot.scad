@@ -2,7 +2,7 @@
 // All dimensions come from params.scad. Pick what to render with -D 'part="..."':
 //   assembly (default), saddle, motor_cradle, wheel, caster_mount, caster_fork,
 //   caster_wheel, caster_bushing, skid, l298n_mount, lm2596_mount, cam_cradle,
-//   bank_strap, can_tab, drill_template (2D, export SVG)
+//   bank_strap, can_tab, can_bar, drill_template (2D, export SVG)
 // Printable parts are modelled in print orientation. The assembly places them.
 //
 // Layout: the cutting board is the chassis. The can sits on top; motors,
@@ -315,14 +315,41 @@ module can_tab() {
     }
 }
 
-// [x, y, angle] for each tab on the board top; angle points away from the can.
+// Rear stop for a rect can: the handle hole is behind it, so instead of one tab
+// with its bolts in the way, a wall spans the handle and slides on two feet that
+// bolt down either side of it. Same frame as can_tab.
+bar_foot_w = 20;
+module can_bar() {
+    L = bar_span + bar_foot_w;
+    difference() {
+        union() {
+            for (s = [-1, 1]) mirror([0, s < 0 ? 1 : 0, 0]) {
+                translate([0, bar_span / 2 - 13, 0]) cube([tab_len, bar_foot_w, tab_t]);
+                // gusset on the inner side of the slot, clear of the washer
+                translate([0, bar_span / 2 - 7, 0]) rotate([90, 0, 0]) linear_extrude(5)
+                    polygon([[tab_wall_t, 0], [tab_len - 4, 0], [tab_len - 4, tab_t], [tab_wall_t, tab_wall_h * 0.8]]);
+            }
+            translate([0, -L / 2, 0]) cube([tab_wall_t, L, tab_wall_h]);
+        }
+        for (s = [-1, 1]) translate([slot_x0, s * bar_span / 2 - tab_bolt_d / 2, -1])
+            hull() for (x = [tab_bolt_d / 2, slot_len - tab_bolt_d / 2])
+                translate([x, tab_bolt_d / 2, 0]) cylinder(d = tab_bolt_d, h = tab_t + 2);
+        if (strap_w > 0)
+            translate([5, -L, (tab_wall_h - strap_w) / 2 + 4]) cube([3.5, 2 * L, strap_w]);
+    }
+}
+
+// [x, y, angle, bar?] for each tab on the board top; angle points away from the can.
 tab_list = can_shape == "round"
-    ? [for (a = [45:90:315]) let (r = can_base_d / 2 + can_clear) [r * cos(a), r * sin(a), a]]
+    ? [for (a = [45:90:315]) let (r = can_base_d / 2 + can_clear) [r * cos(a), r * sin(a), a, false]]
     : let (x = can_w / 2 + can_clear, y = can_dp / 2 + can_clear)
-      [[x, tab_side_y, 0], [-x, tab_side_y, 180], [tab_offset, y, 90], [-tab_offset, -y, 270]];
+      [[x, tab_side_y, 0, false], [-x, tab_side_y, 180, false], [tab_offset, y, 90, false], [0, -y, 270, true]];
 
 function rot2(v, a) = [v[0] * cos(a) - v[1] * sin(a), v[0] * sin(a) + v[1] * cos(a)];
-tab_bolts = [for (t = tab_list, s = [-1, 1]) [t[0], t[1]] + rot2([tab_bolt_x, s * tab_bolt_y], t[2])];
+// bolt positions with the tab slid to x_along its slot (mid-slide by default)
+function tab_bolts_at(xa = tab_bolt_x) =
+    [for (t = tab_list, s = [-1, 1]) [t[0], t[1]] + rot2([xa, s * (t[3] ? bar_span / 2 : tab_bolt_y)], t[2])];
+tab_bolts = tab_bolts_at();
 
 max_bolt_r = max([for (b = tab_bolts) norm(b)]);
 echo(str("can tabs: fit ", can_shape == "round"
@@ -338,6 +365,21 @@ echo(str("caster: mount ", caster_mount_h, " mm tall, swings to ", round(norm([0
     " of ", board_r, " mm radius; M8 nut clears the wheel by ", round(nut_clear), " mm"));
 if (nut_clear < 2) echo("WARNING: caster wheel hits the pivot nut — raise caster_trail");
 if (caster_mount_h < 8) echo("WARNING: caster too tall for ride height — shrink caster_wheel_d");
+
+// Handle hole: distance from a point to the slot's edge (negative = inside it).
+handle_half = handle_w / 2 - handle_h / 2;   // round-end centers at +-this
+function handle_dist(p) = norm([max(abs(p[0]) - handle_half, 0), p[1] - handle_cy]) - handle_h / 2;
+slide_ends = [slot_x0 + tab_bolt_d / 2, slot_x0 + slot_len - tab_bolt_d / 2];
+handle_hits = concat(
+    [for (xa = slide_ends, b = tab_bolts_at(xa)) if (handle_dist(b) < 4.5 + 1) "a can tab bolt"],
+    [for (c = [[-32, caster_y - 17], [32, caster_y - 17], [0, caster_y - 17]])
+        if (handle_dist(c) < handle_keepout) "the caster mount"]);
+handle_near_y = handle_cy + handle_h / 2;   // slot edge nearest the board center
+can_dp_max = 2 * (-handle_near_y - tab_wall_t - can_clear);
+echo(str("handle: ", handle_w, "x", handle_h, " mm slot at the back; can depth up to ", floor(can_dp_max),
+    " mm before the rear bar covers it; ", round(caster_mount_h + board_t), " mm finger room above the caster"));
+if (len(handle_hits) > 0) echo(str("WARNING: handle hole hits ", handle_hits));
+if (can_shape == "rect" && can_dp > can_dp_max) echo("WARNING: can this deep pushes the rear bar over the handle hole");
 
 // ---------------------------------------------------------------- stand-ins for bought parts
 
@@ -381,7 +423,7 @@ module under_parts() {
 }
 
 module top_parts() {
-    for (t = tab_list) translate([t[0], t[1], ride_h + board_t]) rotate([0, 0, t[2]]) can_tab();
+    for (t = tab_list) translate([t[0], t[1], ride_h + board_t]) rotate([0, 0, t[2]]) if (t[3]) can_bar(); else can_tab();
 }
 
 module ghost_can() {
@@ -397,7 +439,7 @@ module ghost_can() {
 }
 
 module assembly() {
-    color("burlywood") translate([0, 0, ride_h]) cylinder(r = board_r, h = board_t, $fn = 128);
+    color("burlywood") translate([0, 0, ride_h]) linear_extrude(board_t) board_2d();
     color("orange") under_parts();
     color("orange") top_parts();
 
@@ -421,11 +463,22 @@ module assembly() {
     if (show_can) %ghost_can();
 }
 
+module handle_2d() hull() for (s = [-1, 1]) translate([s * handle_half, handle_cy]) circle(d = handle_h);
+
+module board_2d() difference() {
+    circle(r = board_r, $fn = 128);
+    handle_2d();
+}
+
 // 1:1 drilling template: footprint of every part at the board face, holes included.
 module drill_template() {
     difference() {
         circle(r = board_r, $fn = 180);
         circle(r = board_r - 0.6, $fn = 180);
+    }
+    difference() {   // handle outline: line it up with the real hole
+        handle_2d();
+        offset(delta = -0.6) handle_2d();
     }
     for (a = [0, 90]) rotate(a) square([20, 0.5], center = true);
     projection(cut = true) translate([0, 0, -(ride_h - 0.5)]) under_parts();
@@ -441,7 +494,7 @@ module drill_template() {
 
 print_parts = ["saddle", "motor_cradle", "wheel", "caster_mount", "caster_fork",
                "caster_wheel", "caster_bushing", "skid", "l298n_mount",
-               "lm2596_mount", "cam_cradle", "bank_strap", "can_tab"];
+               "lm2596_mount", "cam_cradle", "bank_strap", "can_tab", "can_bar"];
 
 module print_part(p) {
     if (p == "saddle") translate([0, 0, sw / 2]) rotate([0, 90, 0]) saddle();
@@ -457,6 +510,7 @@ module print_part(p) {
     else if (p == "cam_cradle") cam_cradle();
     else if (p == "bank_strap") translate([0, 0, 7.5]) rotate([0, 90, 0]) bank_strap();
     else if (p == "can_tab") can_tab();
+    else if (p == "can_bar") can_bar();
 }
 
 // Every part in print orientation on a 3-wide grid, labelled — for pictures, not printing.

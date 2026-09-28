@@ -5,6 +5,11 @@
 // ---------- Chassis: round cutting board ----------
 board_d      = 356;   // [DEFAULT] ~35.6cm per user, to confirm
 board_t      = 12;    // [DEFAULT] cutting board thickness
+// The board's handle hole (a slot with round ends), turned to the back.
+handle_w     = 90;    // [DEFAULT] slot length, end to end
+handle_h     = 25;    // [DEFAULT] slot width
+handle_from_edge = 15; // [DEFAULT] board edge to the slot's outer side
+handle_keepout = 8;   // nothing bolts to the board within this of the slot
 
 // ---------- Trash can (sits on top) ----------
 can_shape    = "rect"; // "rect" (square-ish) or "round"
@@ -17,7 +22,8 @@ can_clear    = 1.5;   // gap between can and tab wall at mid-slide
 
 // ---------- Can tabs: slotted, slide to fit, M4 bolt + nut through the board ----------
 tab_slide    = 40;    // slot travel. Each tab adjusts +-tab_slide/2
-tab_offset   = 60;    // rect: front/back tabs sit this far off center, opposite sides
+tab_offset   = 60;    // rect: front tab sits this far off center (the back gets can_bar, around the handle)
+bar_span     = handle_w + 2 * (handle_keepout + 5); // can_bar: foot bolt to foot bolt, straddling the handle
 tab_w        = 24;    // wall width
 tab_wall_h   = 40;    // wall height; taller = more tip resistance
 tab_bolt_d   = 4.5;   // M4 clearance
@@ -50,7 +56,7 @@ tab_side_y   = -40;   // rect: left/right can tabs, kept clear of the motors
 // ---------- Swivel caster (printed, rear) ----------
 // M8 pivot bolt through a 608 skate bearing, or the printed caster_bushing
 // (same size) until you have one. Wheel spins on an M4 bolt.
-caster_y       = -125; // pivot position
+caster_y       = -108; // pivot position; clear of the handle so fingers fit
 caster_wheel_d = 50;
 caster_wheel_w = 16;
 caster_trail   = 22;   // axle trails the pivot, so the wheel self-aligns
@@ -82,7 +88,7 @@ bank_y       = 45;
 
 // ---------- Board positions (underside, board center = origin, +y = front) ----------
 l298n_pos    = [0, -35];
-lm2596_pos   = [0, -78];
+lm2596_pos   = [-75, -70];
 
 // ---------- Fasteners / print ----------
 wood_screw_d = 3.8;   // clearance for #6 / 3.5mm screws into the board
@@ -102,6 +108,7 @@ ride_h       = wheel_r + axle_below;            // floor to board underside
 wheel_cx     = board_r - edge_margin - wheel_w / 2;
 gearbox_face_x = wheel_cx - wheel_w / 2 - 1.5;  // inner end of the gearbox
 motor_total_l  = gearbox_l + motor_l + motor_tail_l;
+handle_cy    = -(board_r - handle_from_edge - handle_h / 2);
 caster_wr    = caster_wheel_d / 2;
 caster_plate_t   = brg_t + 1.5;                                  // fork top plate, bearing pocket + lip
 caster_plate_bot = caster_wheel_d + caster_lift + 3;              // 3mm over the wheel
