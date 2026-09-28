@@ -20,15 +20,27 @@ can_base_d   = 280;   // [DEFAULT] round: base diameter
 can_h        = 400;   // [DEFAULT] preview only
 can_clear    = 1.5;   // gap between can and tab wall at mid-slide
 
-// ---------- Can tabs: slotted, slide to fit, M4 bolt + nut through the board ----------
+// ---------- Can tabs: 2 per side, one slot each, M4 bolt + nut through the board ----------
+// A single bolt lets a tab pivot; the wall pressed flat against the can is what
+// stops it. If one still twists, add a toothed washer under it.
 tab_slide    = 40;    // slot travel. Each tab adjusts +-tab_slide/2
-tab_offset   = 60;    // rect: front tab sits this far off center (the back gets can_bar, around the handle)
-bar_span     = handle_w + 2 * (handle_keepout + 5); // can_bar: foot bolt to foot bolt, straddling the handle
-tab_w        = 24;    // wall width
+tab_w        = 36;    // wall width, split in two around the bolt
+tab_gap      = 12;    // gap in the middle of the wall: hex key and washer reach the bolt through it
 tab_wall_h   = 40;    // wall height; taller = more tip resistance
 tab_bolt_d   = 4.5;   // M4 clearance
-tab_bolt_y   = 18;    // bolt slots sit this far either side of the wall
 strap_w      = 26;    // belt tunnel for a 25mm velcro strap around the can, 0 = none
+// rect can: where each pair sits along its side (the rear pair is set by the handle)
+side_tab_y   = [-15, -60]; // left/right pairs, behind the motor mounts (y 5-75)
+front_tab_x  = 60;    // front pair, this far either side of center; carries the eyes
+
+// ---------- Googly eyes, on stalks off the front tabs ----------
+// Housing prints face-down in white, pupil + washer in black. The pupil's stem
+// goes through the housing face and the washer presses on behind: M3x8 x2 per
+// eye through the stalk into the housing rim.
+eyes         = true;
+eye_d        = 45;
+eye_pupil_d  = 25;    // covers the stem hole wherever the pupil sits
+eye_travel   = 5;     // how far the pupil wobbles off center
 
 // ---------- Drive motors: Greartisan 12V 100RPM (37mm gearbox) ----------
 gearbox_d    = 37;    // [DEFAULT] spec
@@ -51,7 +63,6 @@ edge_margin  = 6;     // wheel outer face inset from the board edge
 // One rear caster, so the drive axle sits ahead of the can's center: the can's
 // weight then lands inside the wheel-wheel-caster triangle.
 drive_y      = 40;    // drive axle, forward of board center
-tab_side_y   = -40;   // rect: left/right can tabs, kept clear of the motors
 
 // ---------- Swivel caster (printed, rear) ----------
 // M8 pivot bolt through a 608 skate bearing, or the printed caster_bushing
@@ -113,3 +124,4 @@ caster_wr    = caster_wheel_d / 2;
 caster_plate_t   = brg_t + 1.5;                                  // fork top plate, bearing pocket + lip
 caster_plate_bot = caster_wheel_d + caster_lift + 3;              // 3mm over the wheel
 caster_mount_h   = ride_h - caster_plate_bot - caster_plate_t - 1; // 1mm collar gap
+rear_tab_x   = handle_w / 2 + handle_keepout + tab_w / 2;   // rear pair flanks the handle hole

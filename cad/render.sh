@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 
 OPENSCAD="${OPENSCAD:-$HOME/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD}"
 [ -x "$OPENSCAD" ] || OPENSCAD="$(command -v openscad)"
-PARTS=(saddle motor_cradle wheel caster_mount caster_fork caster_wheel caster_bushing skid l298n_mount lm2596_mount cam_cradle bank_strap can_tab can_bar)
+PARTS=(saddle motor_cradle wheel caster_mount caster_fork caster_wheel caster_bushing skid l298n_mount lm2596_mount cam_cradle bank_strap can_tab eye_tab eye eye_pupil)
 COMMON=(--backend=manifold --colorscheme=Tomorrow)
 IMG=(--imgsize=1200,900)
 mkdir -p out/stl out/png

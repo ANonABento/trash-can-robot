@@ -2,7 +2,7 @@
 // All dimensions come from params.scad. Pick what to render with -D 'part="..."':
 //   assembly (default), saddle, motor_cradle, wheel, caster_mount, caster_fork,
 //   caster_wheel, caster_bushing, skid, l298n_mount, lm2596_mount, cam_cradle,
-//   bank_strap, can_tab, can_bar, drill_template (2D, export SVG)
+//   bank_strap, can_tab, eye_tab, eye, eye_pupil, drill_template (2D, export SVG)
 // Printable parts are modelled in print orientation. The assembly places them.
 //
 // Layout: the cutting board is the chassis. The can sits on top; motors,
@@ -287,76 +287,132 @@ module bank_strap() {
     }
 }
 
-// Slotted tab: wall faces the can at local x=0, +x points away from it. Two
-// parallel slots flank the wall, so the bolts sit beside it (not behind it) and
-// stay on the board even for big cans. Loosen, slide against the can, tighten.
-tab_t     = 5;                                   // base plate
-slot_x0   = 3;
-slot_len  = tab_slide + tab_bolt_d;
-tab_len   = slot_x0 + slot_len + 5;
-tab_pw    = 2 * (tab_bolt_y + tab_bolt_d / 2 + 5);
+// Slotted tab: wall faces the can at local x=0, +x points away from it. One
+// slot on the centerline runs under a gap in the wall, so the bolt sits close
+// to the can (the tabs stay on the board) and a hex key reaches it from above.
+// Loosen, slide against the can, tighten.
+tab_t      = 5;                                  // base plate
+slot_x0    = 3;
+slot_len   = tab_slide + tab_bolt_d;
+tab_len    = slot_x0 + slot_len + 5;
 tab_bolt_x = slot_x0 + tab_bolt_d / 2 + tab_slide / 2;  // bolt, tab at mid-slide
 tab_wall_t = strap_w > 0 ? 13 : 6;
+pillar_w   = (tab_w - tab_gap) / 2;
+pillar_mid = tab_gap / 2 + pillar_w / 2;
 
-module can_tab() {
+// Googly eye: a housing with a stem hole in its face, and a pupil whose stem
+// goes through it and gets a washer pressed on behind. Housing frame: z=0 is the
+// face (print it face-down), the open back screws to the stalk.
+eye_r        = eye_d / 2;
+eye_stem_r   = 2.5;
+eye_hole_r   = eye_stem_r + eye_travel;
+eye_washer_r = eye_hole_r + 2;
+eye_cav_r    = eye_washer_r + eye_travel + 0.5;
+eye_face_t   = 2;
+eye_washer_t = 2.5;
+eye_depth    = eye_face_t + 0.3 + eye_washer_t + 1.2;
+eye_stem_l   = eye_face_t + 0.6 + eye_washer_t;      // 0.6 end play keeps it loose
+eye_rim_mid  = (eye_cav_r + eye_r) / 2;
+eye_screw_dz = 6;                                    // screws at +-this on the stalk
+eye_screw_dy = sqrt(eye_rim_mid ^ 2 - eye_screw_dz ^ 2);
+// Stalk: a plate on the wall pillar nearer the robot's centerline, set forward
+// of the wall so a flaring can doesn't touch it. The eye hangs off its inner edge.
+stalk_x0  = 3;
+stalk_t   = 4;
+eye_cy    = pillar_mid + eye_screw_dy;
+eye_z     = tab_wall_h + eye_r + 3;
+stalk_top = eye_z + eye_screw_dz + 6;
+
+module eye() {
+    difference() {
+        cylinder(r = eye_r, h = eye_depth);
+        translate([0, 0, eye_face_t]) cylinder(r = eye_cav_r, h = eye_depth);
+        translate([0, 0, -1]) cylinder(r = eye_hole_r, h = eye_face_t + 2);
+        // pilots for the stalk screws; four, so either eye fits either stalk
+        for (x = [-1, 1], y = [-1, 1]) translate([x * eye_screw_dz, y * eye_screw_dy, 1.5])
+            cylinder(d = m3_tap_d, h = eye_depth);
+    }
+}
+
+// Pupil (disc down) and its washer, side by side. Print black. Press the washer
+// flush onto the stem end from behind the housing; a drop of CA if it's loose.
+module eye_pupil() {
+    cylinder(d = eye_pupil_d, h = 2);
+    cylinder(r = eye_stem_r, h = 2 + eye_stem_l);
+    translate([eye_pupil_d / 2 + eye_washer_r + 4, 0, 0]) difference() {
+        cylinder(r = eye_washer_r, h = eye_washer_t);
+        translate([0, 0, -1]) cylinder(r = eye_stem_r - 0.1, h = eye_washer_t + 2);
+    }
+}
+
+// eye: 0 = none, +1/-1 = eye stalk on the +y/-y pillar
+module can_tab(eye = 0) {
     difference() {
         union() {
-            translate([0, -tab_pw / 2, 0]) cube([tab_len, tab_pw, tab_t]);
-            translate([0, -tab_w / 2, 0]) cube([tab_wall_t, tab_w, tab_wall_h]);
-            // centre gusset, between the washers
-            translate([0, 2.5, 0]) rotate([90, 0, 0]) linear_extrude(5)
-                polygon([[tab_wall_t, 0], [tab_len - 4, 0], [tab_len - 4, tab_t], [tab_wall_t, tab_wall_h * 0.8]]);
+            linear_extrude(tab_t) hull() {
+                translate([0, -tab_w / 2]) square([1, tab_w]);
+                for (s = [-1, 1]) translate([tab_len - 8, s * (tab_w / 2 - 8)]) circle(r = 8);
+            }
+            for (s = [-1, 1]) mirror([0, s < 0 ? 1 : 0, 0]) {
+                translate([0, tab_gap / 2, 0]) cube([tab_wall_t, pillar_w, tab_wall_h]);
+                // gusset on the outer edge, clear of the washer
+                translate([0, tab_w / 2, 0]) rotate([90, 0, 0]) linear_extrude(4)
+                    polygon([[tab_wall_t, 0], [tab_len - 10, 0], [tab_len - 10, tab_t], [tab_wall_t, tab_wall_h * 0.8]]);
+            }
+            if (eye != 0) mirror([0, eye < 0 ? 1 : 0, 0])
+                translate([stalk_x0, tab_gap / 2, tab_wall_h - 1]) cube([stalk_t, pillar_w, stalk_top - tab_wall_h + 1]);
         }
-        for (s = [-1, 1]) translate([slot_x0, s * tab_bolt_y - tab_bolt_d / 2, -1])
-            hull() for (x = [tab_bolt_d / 2, slot_len - tab_bolt_d / 2])
-                translate([x, tab_bolt_d / 2, 0]) cylinder(d = tab_bolt_d, h = tab_t + 2);
+        hull() for (x = [slot_x0 + tab_bolt_d / 2, slot_x0 + slot_len - tab_bolt_d / 2])
+            translate([x, 0, -1]) cylinder(d = tab_bolt_d, h = tab_t + 2);
         if (strap_w > 0)   // tunnel along y, behind the can-facing skin
             translate([5, -tab_w, (tab_wall_h - strap_w) / 2 + 4]) cube([3.5, 2 * tab_w, strap_w]);
+        if (eye != 0) mirror([0, eye < 0 ? 1 : 0, 0])
+            for (z = [-1, 1]) translate([0, pillar_mid, eye_z + z * eye_screw_dz]) rotate([0, 90, 0])
+                cylinder(d = m3_clear_d, h = 30);
     }
 }
 
-// Rear stop for a rect can: the handle hole is behind it, so instead of one tab
-// with its bolts in the way, a wall spans the handle and slides on two feet that
-// bolt down either side of it. Same frame as can_tab.
-bar_foot_w = 20;
-module can_bar() {
-    L = bar_span + bar_foot_w;
-    difference() {
-        union() {
-            for (s = [-1, 1]) mirror([0, s < 0 ? 1 : 0, 0]) {
-                translate([0, bar_span / 2 - 13, 0]) cube([tab_len, bar_foot_w, tab_t]);
-                // gusset on the inner side of the slot, clear of the washer
-                translate([0, bar_span / 2 - 7, 0]) rotate([90, 0, 0]) linear_extrude(5)
-                    polygon([[tab_wall_t, 0], [tab_len - 4, 0], [tab_len - 4, tab_t], [tab_wall_t, tab_wall_h * 0.8]]);
-            }
-            translate([0, -L / 2, 0]) cube([tab_wall_t, L, tab_wall_h]);
+// Eye, pupil and washer where they sit on a tab (same frame), pupil sagged down.
+module tab_eye(eye) {
+    mirror([0, eye < 0 ? 1 : 0, 0]) translate([stalk_x0 + stalk_t + eye_depth, eye_cy, eye_z]) rotate([0, -90, 0]) {
+        color("white") eye();
+        color("black") translate([-eye_travel, 0, -2.3]) {
+            cylinder(d = eye_pupil_d, h = 2);
+            cylinder(r = eye_stem_r, h = 2 + eye_stem_l);
+            translate([0, 0, 2 + eye_face_t + 0.6]) cylinder(r = eye_washer_r, h = eye_washer_t);
         }
-        for (s = [-1, 1]) translate([slot_x0, s * bar_span / 2 - tab_bolt_d / 2, -1])
-            hull() for (x = [tab_bolt_d / 2, slot_len - tab_bolt_d / 2])
-                translate([x, tab_bolt_d / 2, 0]) cylinder(d = tab_bolt_d, h = tab_t + 2);
-        if (strap_w > 0)
-            translate([5, -L, (tab_wall_h - strap_w) / 2 + 4]) cube([3.5, 2 * L, strap_w]);
     }
 }
 
-// [x, y, angle, bar?] for each tab on the board top; angle points away from the can.
+// [x, y, angle, eye] for each tab on the board top; angle points away from the can.
+// Eyes lean toward the centerline: the front-right tab's local +y is world -x.
 tab_list = can_shape == "round"
-    ? [for (a = [45:90:315]) let (r = can_base_d / 2 + can_clear) [r * cos(a), r * sin(a), a, false]]
+    ? [for (a = [45:90:315]) let (r = can_base_d / 2 + can_clear)
+        [r * cos(a), r * sin(a), a, !eyes ? 0 : a == 45 ? 1 : a == 135 ? -1 : 0]]
     : let (x = can_w / 2 + can_clear, y = can_dp / 2 + can_clear)
-      [[x, tab_side_y, 0, false], [-x, tab_side_y, 180, false], [tab_offset, y, 90, false], [0, -y, 270, true]];
+      concat(
+        [for (ty = side_tab_y, s = [-1, 1]) [s * x, ty, s > 0 ? 0 : 180, 0]],
+        [for (s = [-1, 1]) [s * front_tab_x, y, 90, eyes ? s : 0]],
+        [for (s = [-1, 1]) [s * rear_tab_x, -y, 270, 0]]);
 
 function rot2(v, a) = [v[0] * cos(a) - v[1] * sin(a), v[0] * sin(a) + v[1] * cos(a)];
 // bolt positions with the tab slid to x_along its slot (mid-slide by default)
-function tab_bolts_at(xa = tab_bolt_x) =
-    [for (t = tab_list, s = [-1, 1]) [t[0], t[1]] + rot2([xa, s * (t[3] ? bar_span / 2 : tab_bolt_y)], t[2])];
+function tab_bolts_at(xa = tab_bolt_x) = [for (t = tab_list) [t[0], t[1]] + rot2([xa, 0], t[2])];
 tab_bolts = tab_bolts_at();
 
 max_bolt_r = max([for (b = tab_bolts) norm(b)]);
-echo(str("can tabs: fit ", can_shape == "round"
+echo(str("can tabs: ", len(tab_list), " tabs / M4 bolts, fit ", can_shape == "round"
     ? str("diameter ", can_base_d - tab_slide, "-", can_base_d + tab_slide)
     : str(can_w - tab_slide, "-", can_w + tab_slide, " x ", can_dp - tab_slide, "-", can_dp + tab_slide),
     " mm; outermost bolt ", round(max_bolt_r), " of ", board_r, " mm radius"));
-if (max_bolt_r > board_r - 10) echo("WARNING: can tab bolts too close to the board edge — lower tab_offset or tab_bolt_y");
+if (max_bolt_r > board_r - 10) echo("WARNING: can tab bolts too close to the board edge — move the tabs toward center");
+
+eye_gap = 2 * (front_tab_x - eye_cy - eye_r);
+if (eyes) echo(str("eyes: ", eye_d, " mm, ", round(eye_z + board_t), " mm up; pupil wobbles ", eye_travel,
+    " mm", can_shape == "rect" ? str("; ", round(eye_gap), " mm between them") : ""));
+if (eyes && can_shape == "rect" && eye_gap < 2) echo("WARNING: the eyes overlap — raise front_tab_x");
+if (eye_pupil_d / 2 < eye_hole_r + eye_travel) echo("WARNING: pupil too small, the stem hole shows — raise eye_pupil_d");
+if (eye_r - eye_cav_r < 5) echo("WARNING: eye rim too thin for the M3s — raise eye_d or lower eye_travel");
 
 // Swivel caster: the fork must clear the pivot nut, and stay on the board as it swings.
 caster_swing_r = norm([caster_trail + caster_wr, caster_fw / 2]);
@@ -375,11 +431,11 @@ handle_hits = concat(
     [for (c = [[-32, caster_y - 17], [32, caster_y - 17], [0, caster_y - 17]])
         if (handle_dist(c) < handle_keepout) "the caster mount"]);
 handle_near_y = handle_cy + handle_h / 2;   // slot edge nearest the board center
-can_dp_max = 2 * (-handle_near_y - tab_wall_t - can_clear);
+can_dp_max = 2 * (-handle_near_y - can_clear);
 echo(str("handle: ", handle_w, "x", handle_h, " mm slot at the back; can depth up to ", floor(can_dp_max),
-    " mm before the rear bar covers it; ", round(caster_mount_h + board_t), " mm finger room above the caster"));
+    " mm before the can covers it; ", round(caster_mount_h + board_t), " mm finger room above the caster"));
 if (len(handle_hits) > 0) echo(str("WARNING: handle hole hits ", handle_hits));
-if (can_shape == "rect" && can_dp > can_dp_max) echo("WARNING: can this deep pushes the rear bar over the handle hole");
+if (can_shape == "rect" && can_dp > can_dp_max) echo("WARNING: a can this deep covers the handle hole");
 
 // ---------------------------------------------------------------- stand-ins for bought parts
 
@@ -423,7 +479,7 @@ module under_parts() {
 }
 
 module top_parts() {
-    for (t = tab_list) translate([t[0], t[1], ride_h + board_t]) rotate([0, 0, t[2]]) if (t[3]) can_bar(); else can_tab();
+    for (t = tab_list) translate([t[0], t[1], ride_h + board_t]) rotate([0, 0, t[2]]) can_tab(t[3]);
 }
 
 module ghost_can() {
@@ -460,6 +516,7 @@ module assembly() {
         color("green") translate([-cam_w / 2, 0, 0]) cube([cam_w, cam_t, cam_len]);
         color("black") translate([0, cam_t, 10]) rotate([-90, 0, 0]) cylinder(d = 8, h = 5);
     }
+    for (t = tab_list) if (t[3] != 0) translate([t[0], t[1], ride_h + board_t]) rotate([0, 0, t[2]]) tab_eye(t[3]);
     if (show_can) %ghost_can();
 }
 
@@ -494,7 +551,7 @@ module drill_template() {
 
 print_parts = ["saddle", "motor_cradle", "wheel", "caster_mount", "caster_fork",
                "caster_wheel", "caster_bushing", "skid", "l298n_mount",
-               "lm2596_mount", "cam_cradle", "bank_strap", "can_tab", "can_bar"];
+               "lm2596_mount", "cam_cradle", "bank_strap", "can_tab", "eye_tab", "eye", "eye_pupil"];
 
 module print_part(p) {
     if (p == "saddle") translate([0, 0, sw / 2]) rotate([0, 90, 0]) saddle();
@@ -510,7 +567,9 @@ module print_part(p) {
     else if (p == "cam_cradle") cam_cradle();
     else if (p == "bank_strap") translate([0, 0, 7.5]) rotate([0, 90, 0]) bank_strap();
     else if (p == "can_tab") can_tab();
-    else if (p == "can_bar") can_bar();
+    else if (p == "eye_tab") can_tab(1);
+    else if (p == "eye") eye();                                           // face down
+    else if (p == "eye_pupil") eye_pupil();
 }
 
 // Every part in print orientation on a 3-wide grid, labelled — for pictures, not printing.
