@@ -37,7 +37,7 @@ front_tab_x  = 60;    // front pair, this far either side of center; carries the
 // Housing prints face-down in white, pupil + washer in black. The pupil's stem
 // goes through the housing face and the washer presses on behind: M3x8 x2 per
 // eye through the stalk into the housing rim.
-eyes         = true;
+eyes         = false;  // shelved 2026-09-28: sideways camera, face comes back later if at all
 eye_d        = 45;
 eye_pupil_d  = 25;    // covers the stem hole wherever the pupil sits
 eye_travel   = 5;     // how far the pupil wobbles off center
@@ -88,7 +88,7 @@ l298n_h      = 27;       // [DEFAULT] incl. heatsink
 lm2596       = [43, 21]; // [DEFAULT]
 lm2596_holes = [30, 16]; // [DEFAULT] two holes, diagonal corners
 lm2596_h     = 14;
-esp32        = [63.5, 28.5, 1.6]; // [DEFAULT] FORIOT ESP32-S3-CAM PCB (L, W, T)
+esp32        = [67.6, 28.1, 1.6]; // [LISTING] FORIOT ESP32-S3-CAM PCB (L, W, T), L includes the antenna overhang
 esp32_pin_clear = 16;    // header pins + dupont housings behind the PCB
 cam_tilt     = 25;       // degrees upward. Baked into training data — don't change after collecting demos
 cam_from_edge = 5;       // how far the lens sits behind the board edge (the board blocks the view if too far)
