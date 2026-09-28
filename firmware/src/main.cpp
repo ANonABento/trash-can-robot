@@ -311,8 +311,37 @@ void setup() {
 //   MOTOR <l> <r> [ms] — drives the motors (-255..255) for ms (default 1000,
 //                        max 5000), then the failsafe stops them
 //   STOP               — stops the motors immediately
+//   SCAN               — lists visible 2.4 GHz networks
 // ---------------------------------------------------------------------------
 static String serialBuf;
+
+const char *authName(wifi_auth_mode_t mode) {
+    switch (mode) {
+        case WIFI_AUTH_OPEN:            return "open";
+        case WIFI_AUTH_WEP:             return "WEP";
+        case WIFI_AUTH_WPA_PSK:         return "WPA";
+        case WIFI_AUTH_WPA2_PSK:        return "WPA2";
+        case WIFI_AUTH_WPA_WPA2_PSK:    return "WPA/WPA2";
+        case WIFI_AUTH_WPA2_ENTERPRISE: return "WPA2-Enterprise";
+        case WIFI_AUTH_WPA3_PSK:        return "WPA3";
+        case WIFI_AUTH_WPA2_WPA3_PSK:   return "WPA2/WPA3";
+        default:                        return "other";
+    }
+}
+
+void handleScan() {
+    // Scanning needs the station interface; keep the AP up if it's running.
+    if (WiFi.getMode() == WIFI_AP) WiFi.mode(WIFI_AP_STA);
+    int n = WiFi.scanNetworks();
+    Serial.printf("SCAN_START %d\n", n);
+    for (int i = 0; i < n; i++) {
+        Serial.printf("%4d dBm  ch%-2d  %-16s  %s\n", WiFi.RSSI(i), WiFi.channel(i),
+                      authName(WiFi.encryptionType(i)),
+                      WiFi.SSID(i).length() ? WiFi.SSID(i).c_str() : "<hidden>");
+    }
+    Serial.println("SCAN_END");
+    WiFi.scanDelete();
+}
 
 void handleMotorCommand(const String &args) {
     int l = 0, r = 0, ms = 1000;
@@ -336,6 +365,8 @@ void handleSerial() {
             upper.toUpperCase();
             if (upper.startsWith("MOTOR ")) {
                 handleMotorCommand(serialBuf.substring(6));
+            } else if (upper == "SCAN") {
+                handleScan();
             } else if (upper == "STOP") {
                 setCommand(0, 0, 0);
                 Serial.println("STOP_OK");

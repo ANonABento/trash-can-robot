@@ -85,6 +85,7 @@ Serial test commands (115200 baud), no WiFi needed:
 
 - `MOTOR <l> <r> [ms]` — drive the motors (-255..255) for `ms` (default 1000, max 5000)
 - `STOP` — stop the motors
+- `SCAN` — list visible 2.4 GHz networks (SSID, RSSI, channel, security)
 - `CAPTURE` — dump one JPEG as base64 (`python3 capture.py <port>` saves it)
 
 ### 2. ROS2 Nodes (MacBook)
