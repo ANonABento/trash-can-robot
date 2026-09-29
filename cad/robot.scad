@@ -26,7 +26,7 @@ module screw_hole(h = 50) cylinder(d = wood_screw_d, h = h, center = true);
 // a hex pocket in the part's far face (z = t), so it all tightens from above.
 module board_bolt(t) {
     cylinder(d = m3_clear_d, h = 50, center = true);
-    translate([0, 0, t - m3_nut_t - 0.4]) cylinder(d = (m3_nut_af + fit) / cos(30), h = 10, $fn = 6);
+    translate([0, 0, t - m3_nut_t - 0.6]) cylinder(d = (m3_nut_af + m3_nut_fit) / cos(30), h = 10, $fn = 6);
 }
 // shortest stock M3 length that passes the nut
 function m3_len(t) = let (need = board_t + t) [for (l = [8, 10, 12, 16, 20, 25, 30]) if (l >= need) l][0];
