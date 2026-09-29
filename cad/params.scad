@@ -87,12 +87,12 @@ skid_gap     = 8;     // floor clearance; 0 = no skids
 skid_pos     = [[110, 118], [-110, 118]];
 
 // ---------- Electronics ----------
-l298n        = [43, 43]; // [DEFAULT]
-l298n_holes  = [37, 37]; // [DEFAULT] M3, center to center
-l298n_h      = 27;       // [DEFAULT] incl. heatsink
-lm2596       = [43, 21]; // [DEFAULT]
-lm2596_holes = [30, 16]; // [DEFAULT] two holes, diagonal corners
-lm2596_h     = 14;
+l298n        = [43, 43]; // [LISTING] generic red L298N board
+l298n_holes  = [36.6, 36.6]; // [LISTING] M3 (3.0 holes), center to center
+l298n_h      = 28.6;     // [LISTING] incl. heatsink
+lm2596       = [43, 21]; // [LISTING] B0D7ZWVSFW, standard blue LM2596S module
+lm2596_holes = [30, 16]; // [STANDARD, verify] two 3mm holes, diagonal corners (6.5 in from the ends, 2.5 from the sides)
+lm2596_h     = 14;       // [LISTING]
 esp32        = [67.6, 28.1, 1.6]; // [LISTING 67.6 x 28.1; tape said 66 x 27, both too small] FORIOT ESP32-S3-CAM PCB (L incl. antenna, W, T); T is nominal
 esp32_lens   = 17;              // [MEASURED] lens center from the antenna-end edge, centered across the width
 esp32_lens_proud = 8;           // [PHOTO] lens front, in front of the PCB face
@@ -107,7 +107,7 @@ cam_drop     = 10;       // PCB top edge below the board underside
 cam_from_edge = 9;       // lens tip behind the board edge: the board must stay out of the view, the cradle inside the rim
 
 // ---------- Power bank ----------
-bank         = [134, 71, 25]; // [DEFAULT] INIU 20000mAh (B5 size) — L, W, H
+bank         = [104, 70, 29]; // [LISTING] INIU P512 "smallest" 20000mAh (B0FX7T4H7D) — L, W, H
 bank_y       = 45;
 
 // ---------- Board positions (underside, board center = origin, +y = front) ----------
