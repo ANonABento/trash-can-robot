@@ -99,7 +99,7 @@ esp32_lens_proud = 8;           // [PHOTO] lens front, in front of the PCB face
 esp32_tab    = [5.5, 19.3, 2.6]; // [PHOTO] antenna tab past the header shoulders: length, width (19.3 scaled off the fit photo; 18 bound), thickness incl. module
 esp32_usb_clear = 10;           // [MEASURED] header-free strip on the back at the USB end
 esp32_corner = 4;               // [MEASURED] bare corners beside the USB ports, where the mounting holes are
-esp32_hole   = [2.4, 1.6, 3];   // [PHOTO, scaled off the board width] hole center from the USB edge, from the long edge (25mm apart); dia [MEASURED ~3]
+esp32_hole   = [2.4, 1.8, 3];   // [FIT: 2.5 too close, 1.6 slightly too far] hole center from the USB edge, from the long edge (24.5mm apart); dia [MEASURED ~3]
 // Mounted sideways, USB end to the right, so both USB-C ports plug in from the side.
 cam_tilt     = 25;       // degrees upward. Baked into training data — don't change after collecting demos
 cam_vfov     = 55;       // [GUESS] vertical field of view, portrait (sensor long axis vertical)
