@@ -9,8 +9,8 @@ from launch_ros.actions import Node
 def generate_launch_description():
     esp32_ip_arg = DeclareLaunchArgument(
         'esp32_ip',
-        default_value='192.168.1.100',
-        description='IP address of the ESP32'
+        default_value='trashcam.local',
+        description='IP or mDNS hostname of the ESP32 camera board'
     )
 
     esp32_ip = LaunchConfiguration('esp32_ip')

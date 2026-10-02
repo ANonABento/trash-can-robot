@@ -6,3 +6,5 @@ install/
 log/
 .router-creds
 cad/out/
+.pio/
+capture.jpg

@@ -5,6 +5,8 @@
 #include <esp_http_server.h>
 #include <ArduinoJson.h>
 #include <mbedtls/base64.h>
+#include <ESPmDNS.h>
+#include <esp_task_wdt.h>
 
 #include "config.h"
 
@@ -13,7 +15,15 @@
 // ---------------------------------------------------------------------------
 static const uint16_t UDP_PORT          = 4210;
 static const uint16_t HTTP_PORT         = 80;
-static const uint32_t LED_INTERVAL_MS  = 500;
+static const uint16_t HEALTH_PORT       = 81;     // separate server: /stream blocks port 80's worker
+static const uint16_t HEARTBEAT_PORT    = 4211;   // UDP broadcast to the laptop
+static const uint32_t HEARTBEAT_MS      = 1000;
+static const uint32_t WIFI_RESTART_MS   = 60000;  // reboot if WiFi is down this long
+static const uint8_t  CAM_FAIL_RESTART  = 10;     // reboot after N consecutive frame failures
+static const uint32_t WDT_TIMEOUT_S     = 10;
+static const uint32_t LED_OK_MS         = 500;    // slow blink: WiFi connected (or AP up)
+static const uint32_t LED_DOWN_MS       = 100;    // fast blink: WiFi down
+static const char    *HOSTNAME          = "trashcam";
 static const uint8_t  LEDC_RESOLUTION  = 8;    // 0-255
 static const uint32_t LEDC_FREQ        = 5000;
 static const uint8_t  LEDC_CH_ENA      = 0;
@@ -48,6 +58,12 @@ static uint32_t cmdDeadlineMs = 0;
 static portMUX_TYPE cmdMux    = portMUX_INITIALIZER_UNLOCKED;
 
 httpd_handle_t streamHttpd = NULL;
+httpd_handle_t healthHttpd = NULL;
+
+volatile uint32_t lastCmdMs    = 0;   // millis() of last valid UDP command
+volatile uint32_t framesServed = 0;
+volatile uint8_t  camFailures  = 0;
+uint32_t wifiDownSince = 0;
 
 // ---------------------------------------------------------------------------
 // Motor control
@@ -171,6 +187,7 @@ static esp_err_t streamHandler(httpd_req_t *req) {
         fb = esp_camera_fb_get();
         if (!fb) {
             Serial.println("Camera capture failed");
+            if (++camFailures >= CAM_FAIL_RESTART) ESP.restart();
             res = ESP_FAIL;
             break;
         }
@@ -186,6 +203,8 @@ static esp_err_t streamHandler(httpd_req_t *req) {
         fb = NULL;
 
         if (res != ESP_OK) break;
+        camFailures = 0;
+        framesServed++;
     }
     return res;
 }
@@ -209,6 +228,49 @@ void startStreamServer() {
 }
 
 // ---------------------------------------------------------------------------
+// /health endpoint (own server so an open /stream can't starve it)
+// ---------------------------------------------------------------------------
+bool wifiUp() {
+    return WiFi.getMode() == WIFI_AP || WiFi.status() == WL_CONNECTED;
+}
+
+IPAddress currentIP() {
+    return WiFi.getMode() == WIFI_AP ? WiFi.softAPIP() : WiFi.localIP();
+}
+
+void healthJson(char *buf, size_t n) {
+    snprintf(buf, n,
+        "{\"uptime_s\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"heap\":%u,"
+        "\"psram\":%u,\"frames\":%lu,\"cam_failures\":%u,\"cmd_age_ms\":%lu}",
+        (unsigned long)(millis() / 1000), WiFi.RSSI(),
+        currentIP().toString().c_str(),
+        (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram(),
+        (unsigned long)framesServed, (unsigned)camFailures,
+        (unsigned long)(millis() - lastCmdMs));
+}
+
+static esp_err_t healthHandler(httpd_req_t *req) {
+    char buf[256];
+    healthJson(buf, sizeof(buf));
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, buf, HTTPD_RESP_USE_STRLEN);
+}
+
+void startHealthServer() {
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.server_port = HEALTH_PORT;
+    config.ctrl_port   = 32769;
+
+    httpd_uri_t healthUri = {
+        .uri = "/health", .method = HTTP_GET, .handler = healthHandler, .user_ctx = NULL
+    };
+    if (httpd_start(&healthHttpd, &config) == ESP_OK) {
+        httpd_register_uri_handler(healthHttpd, &healthUri);
+        Serial.printf("Health server started on :%d/health\n", HEALTH_PORT);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // FreeRTOS task: LED heartbeat
 // ---------------------------------------------------------------------------
 void heartbeatTask(void *pvParameters) {
@@ -216,7 +278,7 @@ void heartbeatTask(void *pvParameters) {
     pinMode(PIN_LED, OUTPUT);
     for (;;) {
         digitalWrite(PIN_LED, !digitalRead(PIN_LED));
-        vTaskDelay(pdMS_TO_TICKS(LED_INTERVAL_MS));
+        vTaskDelay(pdMS_TO_TICKS(wifiUp() ? LED_OK_MS : LED_DOWN_MS));
     }
 }
 
@@ -230,6 +292,7 @@ void onUdpPacket(AsyncUDPPacket &packet) {
     if (err) return;
 
     setCommand(doc["l"] | 0, doc["r"] | 0, CMD_TIMEOUT_MS);
+    lastCmdMs = millis();
 }
 
 // ---------------------------------------------------------------------------
@@ -261,6 +324,8 @@ void startWifi() {
     }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
     WiFi.mode(WIFI_STA);
+    WiFi.setHostname(HOSTNAME);
+    WiFi.setAutoReconnect(true);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     Serial.printf("Connecting to %s", WIFI_SSID);
     uint32_t start = millis();
@@ -318,7 +383,13 @@ void setup() {
     }
 
     // HTTP stream server
+    if (MDNS.begin(HOSTNAME)) {
+        MDNS.addService("http", "tcp", HTTP_PORT);
+        Serial.printf("mDNS: %s.local\n", HOSTNAME);
+    }
+
     startStreamServer();
+    startHealthServer();
 
     // UDP listener
     if (udp.listen(UDP_PORT)) {
@@ -329,6 +400,11 @@ void setup() {
     // FreeRTOS tasks
     xTaskCreatePinnedToCore(heartbeatTask, "heartbeat", 2048, NULL, 1, NULL, 1);
 
+    // Hardware watchdog on loop(): reboot if it ever stalls
+    esp_task_wdt_init(WDT_TIMEOUT_S, true);
+    esp_task_wdt_add(NULL);
+
+    lastCmdMs = millis();
     Serial.println("Setup complete");
 }
 
@@ -432,7 +508,33 @@ void handleSerial() {
 // ---------------------------------------------------------------------------
 // Loop (idle -- work is in FreeRTOS tasks and callbacks)
 // ---------------------------------------------------------------------------
+static uint32_t lastHbMs = 0;
+
+void sendHeartbeat() {
+    char buf[256];
+    healthJson(buf, sizeof(buf));
+    udp.broadcastTo((uint8_t *)buf, strlen(buf), HEARTBEAT_PORT);
+}
+
 void loop() {
+    esp_task_wdt_reset();
     handleSerial();
+
+    uint32_t now = millis();
+
+    // WiFi recovery: auto-reconnect handles short drops; reboot on long ones.
+    // Not in fallback-AP mode, where there is no station link to lose.
+    // (motorTask already stops the motors once commands stop arriving.)
+    if (wifiUp()) {
+        wifiDownSince = 0;
+    } else {
+        if (wifiDownSince == 0) wifiDownSince = now;
+        if (now - wifiDownSince > WIFI_RESTART_MS) ESP.restart();
+    }
+
+    if (wifiUp() && now - lastHbMs >= HEARTBEAT_MS) {
+        lastHbMs = now;
+        sendHeartbeat();
+    }
     vTaskDelay(pdMS_TO_TICKS(10));
 }

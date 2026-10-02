@@ -14,7 +14,7 @@ class CameraNode(Node):
     def __init__(self):
         super().__init__('camera_node')
 
-        self.declare_parameter('esp32_ip', '192.168.1.100')
+        self.declare_parameter('esp32_ip', 'trashcam.local')
         self.declare_parameter('stream_port', 80)
 
         self.esp32_ip = self.get_parameter('esp32_ip').value

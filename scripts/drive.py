@@ -6,7 +6,8 @@
   scripts/drive.py --keys         keyboard teleop (WASD, space = stop, q = quit)
 
 Commands are repeated at 20 Hz because the ESP32 stops the motors after
-300 ms without one. Set ROBOT_IP to override the default address.
+300 ms without one. The robot is found by its mDNS name, trashcam.local;
+set ROBOT_IP (or --ip) to use an address instead.
 """
 import argparse
 import curses
@@ -81,8 +82,13 @@ def main():
     p.add_argument("seconds", nargs="?", type=float, default=1.0)
     p.add_argument("--keys", action="store_true", help="keyboard teleop")
     p.add_argument("--speed", type=int, default=200, help="teleop speed (default 200)")
-    p.add_argument("--ip", default=os.environ.get("ROBOT_IP", "192.168.4.3"))
+    p.add_argument("--ip", default=os.environ.get("ROBOT_IP", "trashcam.local"))
     a = p.parse_args()
+    # Resolve once: sendto() with a .local name would do an mDNS lookup per packet.
+    try:
+        a.ip = socket.gethostbyname(a.ip)
+    except OSError:
+        p.error(f"can't resolve {a.ip}; is the robot on the same network? Try ROBOT_IP=<address>")
 
     if a.keys:
         curses.wrapper(teleop, a.ip, a.speed)

@@ -134,6 +134,16 @@ Open Foxglove Studio and import `foxglove/trashcan_layout.json`.
 - URL: `http://<ESP32_IP>:80/stream`
 - Format: multipart JPEG (VGA, quality 12)
 
+### Health and heartbeat (ESP32 -> MacBook)
+
+- `http://trashcam.local:81/health` returns JSON: `uptime_s`, `rssi`, `ip`, `heap`, `psram`, `frames`, `cam_failures`, `cmd_age_ms`.
+- The same JSON is broadcast over UDP to port 4211 once a second. `safety_monitor_node` listens and publishes `/esp32/alive` and `/diagnostics`.
+- LED on GPIO 2: slow blink = WiFi connected, fast blink = WiFi down.
+- The board advertises itself as `trashcam.local` (mDNS), so no IP lookup is needed.
+- Keep the Mac and the ESP32 on the same 2.4 GHz network with no client isolation, or mDNS and the broadcast heartbeat will not arrive.
+
 ### Safety
 
-The ESP32's only safeguard is the command timeout above. There is no obstacle detection yet: the ToF sensors were dropped, and `safety_monitor_node` only clamps speeds. Obstacle gating belongs in that node, between `/cmd_vel` and `/cmd_vel_safe`.
+- The firmware stops the motors if no UDP command arrives for 300 ms (the command timeout above), and reboots on a long WiFi outage, repeated camera failures or a stalled loop.
+- `safety_monitor_node` clamps speeds, republishes the last command at 10 Hz, and publishes zero if `/cmd_vel` is stale (0.5 s) or the ESP32 heartbeat is lost (3 s). Use `require_heartbeat:=false` for bench tests.
+- There is no obstacle detection yet: the ToF sensors were dropped. Obstacle gating belongs in `safety_monitor_node`, between `/cmd_vel` and `/cmd_vel_safe`.

@@ -8,6 +8,7 @@ been quiet for cmd_timeout_s (longer than a keyboard's key-repeat delay).
 import json
 import socket
 import math
+import time
 
 import rclpy
 from rclpy.node import Node
@@ -27,7 +28,7 @@ class MotorNode(Node):
     def __init__(self):
         super().__init__('motor_node')
 
-        self.declare_parameter('esp32_ip', '192.168.1.100')
+        self.declare_parameter('esp32_ip', 'trashcam.local')
         self.declare_parameter('udp_port', 4210)
         self.declare_parameter('send_rate_hz', 20.0)
         self.declare_parameter('cmd_timeout_s', 0.6)
@@ -40,6 +41,8 @@ class MotorNode(Node):
         self._last_cmd_time = None
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._addr = None
+        self._addr_t = 0.0
 
         self.sub = self.create_subscription(
             Twist, '/cmd_vel_safe', self._cmd_vel_cb, 10
@@ -77,10 +80,25 @@ class MotorNode(Node):
     def _send(self, pwm_left: int, pwm_right: int):
         # UDP JSON matching firmware format: {"l": <int>, "r": <int>}
         payload = json.dumps({"l": pwm_left, "r": pwm_right}).encode('utf-8')
+        addr = self._resolve()
+        if not addr:
+            return
         try:
-            self.sock.sendto(payload, (self.esp32_ip, self.udp_port))
+            self.sock.sendto(payload, (addr, self.udp_port))
         except OSError as e:
             self.get_logger().warn(f'UDP send failed: {e}', throttle_duration_sec=2.0)
+
+    def _resolve(self):
+        """Resolve esp32_ip (IP or mDNS name), cached so sends never block on lookups."""
+        now = time.monotonic()
+        if self._addr is None or now - self._addr_t > 30.0:
+            try:
+                self._addr = socket.gethostbyname(self.esp32_ip)
+            except OSError:
+                self.get_logger().warn(f'Cannot resolve {self.esp32_ip}',
+                                       throttle_duration_sec=5.0)
+            self._addr_t = now if self._addr else now - 25.0  # retry in ~5s on failure
+        return self._addr
 
     @staticmethod
     def _clamp(value: float, min_val: float, max_val: float) -> float:
