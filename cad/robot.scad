@@ -280,9 +280,11 @@ ant_slack = 2;    // extra pocket length: the screw holes locate x, not the tab 
 ant_shoulder_gap = 2; // side blocks stop this short of the PCB shoulders, so they never locate x either
 ant_side_clear = 0;   // extra per side between the tab and the side blocks; they only guide, the screws locate
 ledge   = 2;
-usb_x0  = cam_xu - esp32_usb_clear + 1;   // 1mm clear of the last header
+usb_shift = 2;    // [FIT] the whole USB-end block (pads, ledge, screw holes) sits this far toward the antenna end
+usb_x0  = cam_xu - esp32_usb_clear + 1 - usb_shift;   // was 1mm clear of the last header
+usb_x1  = cam_xu - usb_shift;
 usb_relief = 2.5; // the USB shells' legs poke through the back between the corners
-cam_holes = [for (z = [esp32_hole[1], cam_W - esp32_hole[1]]) [cam_xu - esp32_hole[0], z]];
+cam_holes = [for (z = [esp32_hole[1], cam_W - esp32_hole[1]]) [cam_xu - usb_shift - esp32_hole[0], z]];
 cam_screw_len = floor(cam_T + cam_bk - 1.5);
 
 // frame -> hang coordinates, and the placement that does it
@@ -298,7 +300,7 @@ module cam_cradle_frame(beam_top = -4) difference() {
     ant_side_l = fit + ant_slack + ant_l - ant_shoulder_gap;   // tab tip to just short of the shoulders
     union() {
         // beam over the top edge; the PCB's top edge stops against it
-        translate([x0, -cam_bk, beam_top]) cube([cam_xu - x0, cam_bk + cam_T, -fit - beam_top]);
+        translate([x0, -cam_bk, beam_top]) cube([usb_x1 - x0, cam_bk + cam_T, -fit - beam_top]);
         // antenna end: wall, blocks either side of the tab, back pad under it, lip over its tip
         translate([x0, -cam_bk, beam_top]) cube([cam_end, cam_bk + ant_t + fit + lip_t, zb - beam_top]);
         translate([xa, -cam_bk, -fit]) cube([ant_side_l, cam_bk + ant_t + fit + lip_t, ant_z0 - ant_side_clear]);
@@ -306,9 +308,9 @@ module cam_cradle_frame(beam_top = -4) difference() {
         translate([xa, -cam_bk, 0]) cube([ant_l + ant_slack, cam_bk, cam_W]);
         translate([xa, ant_t + fit, 0]) cube([lip_over + ant_slack + fit, lip_t, cam_W]);
         // USB end: back block, pads under the bare corners, ledge under the bottom edge
-        translate([usb_x0, -cam_bk, beam_top]) cube([cam_xu - usb_x0, cam_bk - usb_relief, zb - beam_top]);
-        for (z = [0, cam_W - esp32_corner]) translate([usb_x0, -usb_relief, z]) cube([cam_xu - usb_x0, usb_relief, esp32_corner]);
-        translate([usb_x0, -cam_bk, cam_W + fit]) cube([cam_xu - usb_x0, cam_bk + cam_T, ledge]);
+        translate([usb_x0, -cam_bk, beam_top]) cube([usb_x1 - usb_x0, cam_bk - usb_relief, zb - beam_top]);
+        for (z = [0, cam_W - esp32_corner]) translate([usb_x0, -usb_relief, z]) cube([usb_x1 - usb_x0, usb_relief, esp32_corner]);
+        translate([usb_x0, -cam_bk, cam_W + fit]) cube([usb_x1 - usb_x0, cam_bk + cam_T, ledge]);
     }
     // pilot holes for the M2.5 screws, from the PCB face down into the block
     for (h = cam_holes) translate([h[0], -cam_bk + 1.5, h[1]]) rotate([-90, 0, 0]) cylinder(d = m25_tap_d, h = cam_bk + cam_T, $fn = 24);
