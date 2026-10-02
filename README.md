@@ -60,9 +60,11 @@ Motor pins avoid USB D-/D+ (19, 20), strapping pins (0, 3, 45, 46), UART0 (43, 4
 
 ### Power
 
-- 12V from PD trigger to L298N VCC and LM2596 input
-- LM2596 output (5V) to ESP32 VIN
-- L298N 5V regulator jumper removed (powered externally)
+- 12V from PD trigger to L298N +12V and LM2596 input
+- LM2596 output, set to 5.0V with a multimeter *before* connecting the ESP32, to ESP32 5V/VIN
+- L298N 5V jumper stays **on** (it powers its own logic from 12V); leave its +5V terminal unconnected, or the two 5V sources fight
+- Shared ground: PD trigger, L298N, LM2596 and ESP32
+- Remove the ENA/ENB jumper caps so the PWM pins control speed
 
 ## Setup
 
